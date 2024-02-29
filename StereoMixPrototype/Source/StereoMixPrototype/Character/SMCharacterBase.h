@@ -6,24 +6,28 @@
 #include "GameFramework/Character.h"
 #include "SMCharacterBase.generated.h"
 
+class USMCharacterAssetData;
+
 UCLASS()
 class STEREOMIXPROTOTYPE_API ASMCharacterBase : public ACharacter
 {
 	GENERATED_BODY()
 
 public:
-	// Sets default values for this character's properties
 	ASMCharacterBase();
 
+public:
+	virtual void PostInitializeComponents() override;
+
 protected:
-	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
 
-public:	
-	// Called every frame
+public:
 	virtual void Tick(float DeltaTime) override;
 
-	// Called to bind functionality to input
-	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
+protected: // Data Section
+	virtual void CheckAssetLoaded();
 
+	UPROPERTY()
+	TObjectPtr<USMCharacterAssetData> AssetData;
 };
