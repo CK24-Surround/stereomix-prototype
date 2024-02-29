@@ -13,5 +13,4 @@ UCLASS()
 class STEREOMIXPROTOTYPE_API ASMGameMode : public AGameModeBase
 {
 	GENERATED_BODY()
-	
 };
