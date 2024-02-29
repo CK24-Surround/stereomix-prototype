@@ -1,0 +1,66 @@
+# Visual Studio
+.vs/
+*.sln
+*.vsconfig
+
+# Rider
+.idea/
+*.uproject.DotSettings.user
+
+# Misc
+.DS_Store/
+Misc/
+
+# Unreal Engine
+StereoMixPrototype/Binaries/*
+!StereoMixPrototype/Binaries/Win64
+StereoMixPrototype/Binaries/Win64/*
+
+## Build Data ~
+!StereoMixPrototype/Binaries/Win64/StereoMixPrototypeEditor.target
+!StereoMixPrototype/Binaries/Win64/UnrealEditor.modules
+!StereoMixPrototype/Binaries/Win64/UnrealEditor-StereoMixPrototype.dll
+
+StereoMixPrototype/Build/
+StereoMixPrototype/DerivedDataCache/
+StereoMixPrototype/Intermediate/
+StereoMixPrototype/Platforms/
+StereoMixPrototype/Saved/
+
+# FMODStudio     // Remove when not in use
+FMODProject/*
+!FMODProject/Assets
+!FMODProject/Metadata
+!FMODProject/FMODProject.fspro
+
+StereoMixPrototype/Plugins/FMODStudio/Docs
+StereoMixPrototype/Plugins/FMODStudio/Binaries/*
+!StereoMixPrototype/Plugins/FMODStudio/Binaries/Win64
+StereoMixPrototype/Plugins/FMODStudio/Binaries/Win64/*
+!StereoMixPrototype/Plugins/FMODStudio/Binaries/Win64/fmod.dll
+!StereoMixPrototype/Plugins/FMODStudio/Binaries/Win64/fmod_vc.lib
+!StereoMixPrototype/Plugins/FMODStudio/Binaries/Win64/fmodL.dll
+!StereoMixPrototype/Plugins/FMODStudio/Binaries/Win64/fmodL_vc.lib
+!StereoMixPrototype/Plugins/FMODStudio/Binaries/Win64/fmodstudio.dll
+!StereoMixPrototype/Plugins/FMODStudio/Binaries/Win64/fmodstudio_vc.lib
+!StereoMixPrototype/Plugins/FMODStudio/Binaries/Win64/fmodstudioL.dll
+!StereoMixPrototype/Plugins/FMODStudio/Binaries/Win64/fmodstudioL_vc.lib
+!StereoMixPrototype/Plugins/FMODStudio/Binaries/Win64/resonanceaudio.dll
+
+## Build Data ~
+!StereoMixPrototype/Plugins/FMODStudio/Binaries/Win64/UnrealEditor.modules
+!StereoMixPrototype/Plugins/FMODStudio/Binaries/Win64/UnrealEditor-FMODStudio.dll
+!StereoMixPrototype/Plugins/FMODStudio/Binaries/Win64/UnrealEditor-FMODStudioEditor.dll
+
+StereoMixPrototype/Plugins/FMODStudio/Intermediate
+
+# KawaiiPhysics     // Remove when not in use\
+StereoMixPrototype/Plugins/KawaiiPhysics/Binaries/*
+!StereoMixPrototype/Plugins/KawaiiPhysics/Binaries/Win64
+StereoMixPrototype/Plugins/KawaiiPhysics/Binaries/Win64/*
+StereoMixPrototype/Plugins/KawaiiPhysics/Intermediate
+
+## Build Data ~
+!StereoMixPrototype/Plugins/KawaiiPhysics/Binaries/Win64/UnrealEditor.modules
+!StereoMixPrototype/Plugins/KawaiiPhysics/Binaries/Win64/UnrealEditor-KawaiiPhysics.dll
+!StereoMixPrototype/Plugins/KawaiiPhysics/Binaries/Win64/UnrealEditor-KawaiiPhysicsEd.dll
