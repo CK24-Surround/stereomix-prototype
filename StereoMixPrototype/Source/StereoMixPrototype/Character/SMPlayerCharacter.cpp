@@ -35,7 +35,10 @@ ASMPlayerCharacter::ASMPlayerCharacter()
 		AimPlane->SetStaticMesh(PlaneMeshRef.Object);
 	}
 
-	bUseControllerRotationYaw = false;
+	UCharacterMovementComponent* CachedCharacterMovement = GetCharacterMovement();
+	CachedCharacterMovement->MaxAcceleration = 99999.0f;
+	CachedCharacterMovement->AirControl = 0.5f;
+	bUseControllerRotationYaw = true;
 }
 
 void ASMPlayerCharacter::PossessedBy(AController* NewController)
@@ -47,6 +50,7 @@ void ASMPlayerCharacter::PossessedBy(AController* NewController)
 
 void ASMPlayerCharacter::BeginPlay()
 {
+	NET_LOG(LogSMNetwork, Log, TEXT("Begin"));
 	Super::BeginPlay();
 
 	SetCharacterControl();
@@ -132,14 +136,16 @@ void ASMPlayerCharacter::RotateToMousePointer()
 {
 	if (IsLocallyControlled())
 	{
-		const FRotator NewRotator = FRotator(0.0, FRotationMatrix::MakeFromX(GetMousePointingDirection()).Rotator().Yaw, 0.0);
+		const FRotator TargetRotator = FRotator(0.0, FRotationMatrix::MakeFromX(GetMousePointingDirection()).Rotator().Yaw, 0.0);
+		const FRotator NewRotator = FMath::RInterpTo(GetActorRotation(), TargetRotator, GetWorld()->GetDeltaSeconds(), 50.0f);
+		GetController()->SetControlRotation(NewRotator);
 		
-		SetActorRotation(NewRotator);
+		// SetActorRotation(NewRotator);
 
-		if (!HasAuthority())
-		{
-			ServerRotateToMousePointer(NewRotator.Yaw);
-		}
+		// if (!HasAuthority())
+		// {
+		// 	ServerRotateToMousePointer(NewRotator.Yaw);
+		// }
 	}
 }
 
