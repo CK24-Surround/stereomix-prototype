@@ -8,6 +8,7 @@
 #include "EnhancedInputSubsystems.h"
 #include "SMCharacterAssetData.h"
 #include "Camera/CameraComponent.h"
+#include "Components/CapsuleComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "Log/SMLog.h"
@@ -33,7 +34,7 @@ ASMPlayerCharacter::ASMPlayerCharacter()
 	CachedCharacterMovement->BrakingDecelerationWalking = 10000.0f;
 	CachedCharacterMovement->BrakingDecelerationFalling = 0.0f; // ~ 100 중 선택
 	CachedCharacterMovement->AirControl = 1.0f;
-	
+
 	CachedCharacterMovement->GravityScale = 2.0f;
 	CachedCharacterMovement->JumpZVelocity = 700.0f;
 }
@@ -83,6 +84,15 @@ void ASMPlayerCharacter::Tick(float DeltaSeconds)
 	Super::Tick(DeltaSeconds);
 
 	RotateToMousePointer();
+
+	if (HasAuthority())
+	{
+		if (PullData.bIsPulling)
+		{
+			NET_LOG(LogSMNetwork, Warning, TEXT(""));
+			HandlePulling(DeltaSeconds);
+		}
+	}
 }
 
 void ASMPlayerCharacter::InitCamera()
@@ -97,6 +107,7 @@ void ASMPlayerCharacter::InitCamera()
 	CameraBoom->bInheritYaw = false;
 	CameraBoom->TargetArmLength = CameraDistance;
 	CameraBoom->bDoCollisionTest = false;
+	CameraBoom->bEnableCameraLag = true;
 
 	Camera->SetFieldOfView(CameraFOV);
 }
@@ -190,6 +201,29 @@ void ASMPlayerCharacter::ServerRotateToMousePointer_Implementation(float InYaw)
 	SetActorRotation(FRotator(0.0, InYaw, 0.0));
 }
 
+void ASMPlayerCharacter::OnRep_ReplicatedMovement()
+{
+	Super::OnRep_ReplicatedMovement();
+}
+
+void ASMPlayerCharacter::SetCanControl(bool bNewCanControl)
+{
+	if (!!bCanControl == bNewCanControl)
+	{
+		return;
+	}
+
+	bCanControl = bNewCanControl;
+	if (bCanControl)
+	{
+		EnableInput(StoredSMPlayerController);
+	}
+	else
+	{
+		DisableInput(StoredSMPlayerController);
+	}
+}
+
 void ASMPlayerCharacter::OnRep_Controller()
 {
 	Super::OnRep_Controller();
@@ -241,16 +275,68 @@ float ASMPlayerCharacter::DistanceHeightFromFloor()
 void ASMPlayerCharacter::Hold()
 {
 	HandleHold();
+	
 }
 
 void ASMPlayerCharacter::HandleHold()
 {
 	if (IsLocallyControlled())
 	{
-		// GetWorld()->SweepSingleByProfile()
-	}
+		FHitResult HitResult;
+		const FVector Start = GetActorLocation();
+		const FVector End = Start + (GetActorForwardVector() * 300.0f);
+		FCollisionObjectQueryParams CollisionObjectQueryParams;
+		CollisionObjectQueryParams.AddObjectTypesToQuery(ECC_Pawn);
+		FCollisionQueryParams CollisionQueryParams(SCENE_QUERY_STAT(Hold), false, this);
+		const bool bSuccess = GetWorld()->SweepSingleByObjectType(HitResult, Start, End, FQuat::Identity, CollisionObjectQueryParams, FCollisionShape::MakeSphere(50.0f), CollisionQueryParams);
+		if (bSuccess)
+		{
+			ASMPlayerCharacter* HitPlayerCharacter = Cast<ASMPlayerCharacter>(HitResult.GetActor());
+			if (HitPlayerCharacter)
+			{
+				NET_LOG(LogSMNetwork, Warning, TEXT("Begin"));
+				ServerHandleHold(HitPlayerCharacter);
+			}
+		}
 
-	ServerHold();
+		const FVector Center = Start + (End - Start) * 0.5f;
+		const FColor DrawColor = bSuccess ? FColor::Green : FColor::Red;
+		DrawDebugCapsule(GetWorld(), Center, 150.0f, 50.0f, FRotationMatrix::MakeFromZ(GetActorForwardVector()).ToQuat(), DrawColor, false, 1.0f);
+	}
 }
 
-void ASMPlayerCharacter::ServerHold_Implementation() {}
+void ASMPlayerCharacter::HandlePulling(float DeltaSeconds)
+{
+	PullData.ElapsedTime += DeltaSeconds;
+	const float Alpha = FMath::Clamp(PullData.ElapsedTime / PullData.EndTime, 0.0f, 1.0f);
+	const FVector NewLocation = FMath::Lerp(PullData.StartLocation, PullData.TargetLocation, Alpha);
+	SetActorLocation(NewLocation);
+
+	if (Alpha >= 1.0f)
+	{
+		PullData.ElapsedTime = 0.0f;
+		PullData.bIsPulling = false;
+	}
+}
+
+void ASMPlayerCharacter::ServerHandleHold_Implementation(ASMPlayerCharacter* OtherPlayerCharacter)
+{
+	NET_LOG(LogSMNetwork, Log, TEXT("Begin"));
+	OtherPlayerCharacter->ClientHandleHold();
+	OtherPlayerCharacter->PullData.StartLocation = OtherPlayerCharacter->GetActorLocation();
+	FVector TargetVector = OtherPlayerCharacter->PullData.StartLocation - GetActorLocation();
+	TargetVector.Z = 0.0;
+	const FVector TargetDirection = TargetVector.GetSafeNormal();
+	const float CapsuleRadius = GetCapsuleComponent()->GetScaledCapsuleRadius();
+	OtherPlayerCharacter->PullData.TargetLocation = GetActorLocation() + TargetDirection * CapsuleRadius * 2;
+	OtherPlayerCharacter->PullData.bIsPulling = true;
+
+	DrawDebugLine(GetWorld(), OtherPlayerCharacter->PullData.StartLocation, OtherPlayerCharacter->PullData.TargetLocation, FColor::Green, false, 3.0f);
+}
+
+void ASMPlayerCharacter::ClientHandleHold_Implementation()
+{
+	NET_LOG(LogSMNetwork, Log, TEXT("Begin"));
+	// 테스트를 위한 비활성화
+	// SetCanControl(false);
+}

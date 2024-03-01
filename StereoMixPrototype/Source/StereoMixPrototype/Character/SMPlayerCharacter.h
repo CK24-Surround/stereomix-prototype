@@ -43,7 +43,7 @@ protected: // Camera Section
 	UPROPERTY(VisibleAnywhere, Category = "Camera")
 	TObjectPtr<UCameraComponent> Camera;
 
-protected: // Input & Control Section
+protected: // Move Section
 	void Move(const FInputActionValue& InputActionValue);
 	
 	void SetCharacterControl();
@@ -52,14 +52,22 @@ protected: // Input & Control Section
 
 	UFUNCTION(Server, Unreliable)
 	void ServerRotateToMousePointer(float InYaw);
-	
-	virtual void OnRep_Controller() override;
 
+	void OnRep_ReplicatedMovement() override;
+
+public: // Control Section
+	void SetCanControl(bool bNewCanControl);
+
+protected: // ...
+	virtual void OnRep_Controller() override;
+	
 	UPROPERTY()
 	TObjectPtr<AAimPlane> AimPlane;
 	
 	UPROPERTY()
 	TObjectPtr<ASMPlayerController> StoredSMPlayerController;
+	
+	uint32 bCanControl = true;
 
 protected: // Jump Section
 	virtual void OnJumped_Implementation() override;
@@ -75,6 +83,22 @@ protected: // Hold Section
 	void Hold();
 	void HandleHold();
 
-	UFUNCTION(Server, Unreliable)
-	void ServerHold();
+	UFUNCTION(Server, Reliable)
+	void ServerHandleHold(ASMPlayerCharacter* OtherPlayerCharacter);
+
+	UFUNCTION(Client, Reliable)
+	void ClientHandleHold();
+
+	void HandlePulling(float DeltaSeconds);
+
+	struct FPullData
+	{
+		uint32 bIsPulling = false;
+		FVector StartLocation;
+		FVector TargetLocation;
+		float ElapsedTime = 0.0f;
+		float EndTime = 1.0f;
+	};
+	
+	FPullData PullData;
 };
