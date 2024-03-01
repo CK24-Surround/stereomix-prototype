@@ -43,6 +43,8 @@ protected: // Camera Section
 	TObjectPtr<UCameraComponent> Camera;
 
 protected: // Input & Control Section
+	void Move(const FInputActionValue& InputActionValue);
+	
 	void SetCharacterControl();
 	FVector GetMousePointingDirection();
 	void RotateToMousePointer();
@@ -51,8 +53,6 @@ protected: // Input & Control Section
 	void ServerRotateToMousePointer(float InYaw);
 	
 	virtual void OnRep_Controller() override;
-
-	void Move(const FInputActionValue& InputActionValue);
 
 	UPROPERTY(VisibleAnywhere, Category = "Control")
 	TObjectPtr<UStaticMeshComponent> AimPlane;

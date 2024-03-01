@@ -38,14 +38,19 @@ ASMPlayerCharacter::ASMPlayerCharacter()
 	UCharacterMovementComponent* CachedCharacterMovement = GetCharacterMovement();
 	CachedCharacterMovement->MaxAcceleration = 99999.0f;
 	CachedCharacterMovement->AirControl = 0.5f;
-	bUseControllerRotationYaw = true;
+	bUseControllerRotationYaw = false;
 }
 
 void ASMPlayerCharacter::PossessedBy(AController* NewController)
 {
 	Super::PossessedBy(NewController);
 
-	StoredSMPlayerController = CastChecked<ASMPlayerController>(GetController());
+	// 무조건 서버에서만 실행되겠지만 만약을 위한 조건입니다.
+	if (HasAuthority())
+	{
+		// 서버에선 OnRep_Controller가 호출되지 않고, 클라이언트에서는 PossessedBy가 호출되지 않기 때문에 서버는 여기서 컨트롤러를 캐싱합니다.
+		StoredSMPlayerController = CastChecked<ASMPlayerController>(GetController());
+	}
 }
 
 void ASMPlayerCharacter::BeginPlay()
@@ -89,6 +94,17 @@ void ASMPlayerCharacter::InitCamera()
 	CameraBoom->bDoCollisionTest = false;
 
 	Camera->SetFieldOfView(CameraFOV);
+}
+
+void ASMPlayerCharacter::Move(const FInputActionValue& InputActionValue)
+{
+	const FVector2D InputScalar = InputActionValue.Get<FVector2D>().GetSafeNormal();
+	const FRotator CameraYawRotation(0.0, Camera->GetComponentRotation().Yaw, 0.0);
+	const FVector ForwardDirection = FRotationMatrix(CameraYawRotation).GetUnitAxis(EAxis::X);
+	const FVector RightDirection = FRotationMatrix(CameraYawRotation).GetUnitAxis(EAxis::Y);
+	const FVector MoveVector = (ForwardDirection * InputScalar.X) + (RightDirection * InputScalar.Y);
+
+	AddMovementInput(MoveVector);
 }
 
 void ASMPlayerCharacter::SetCharacterControl()
@@ -136,43 +152,32 @@ void ASMPlayerCharacter::RotateToMousePointer()
 {
 	if (IsLocallyControlled())
 	{
-		const FRotator TargetRotator = FRotator(0.0, FRotationMatrix::MakeFromX(GetMousePointingDirection()).Rotator().Yaw, 0.0);
-		const FRotator NewRotator = FMath::RInterpTo(GetActorRotation(), TargetRotator, GetWorld()->GetDeltaSeconds(), 50.0f);
-		GetController()->SetControlRotation(NewRotator);
-		
-		// SetActorRotation(NewRotator);
+		const FRotator MousePointingRotation = FRotationMatrix::MakeFromX(GetMousePointingDirection()).Rotator();
+		const FRotator NewRotation = FRotator(0.0, MousePointingRotation.Yaw, 0.0);
 
-		// if (!HasAuthority())
-		// {
-		// 	ServerRotateToMousePointer(NewRotator.Yaw);
-		// }
+		SetActorRotation(NewRotation);
+
+		if (!HasAuthority())
+		{
+			ServerRotateToMousePointer(NewRotation.Yaw);
+		}
 	}
 }
 
 void ASMPlayerCharacter::ServerRotateToMousePointer_Implementation(float InYaw)
 {
 	// 트랜스폼은 리플리케이트 무브먼트 활성화 시 자동으로 모든 클라이언트에 동기화하기 때문에 서버에서만 처리해주면 됩니다.
-	const FRotator NewRotator = FMath::RInterpTo(GetActorRotation(), FRotator(0.0, InYaw, 0.0), GetWorld()->GetDeltaSeconds(), 50.0f);
-	SetActorRotation(NewRotator);
+	SetActorRotation(FRotator(0.0, InYaw, 0.0));
 }
 
 void ASMPlayerCharacter::OnRep_Controller()
 {
 	Super::OnRep_Controller();
 
+	// 로컬 컨트롤러를 캐싱해야하기위한 조건입니다.
 	if (IsLocallyControlled())
 	{
+		// 서버에선 OnRep_Controller가 호출되지 않고, 클라이언트에서는 PossessedBy가 호출되지 않기 때문에 서버는 여기서 컨트롤러를 캐싱합니다.
 		StoredSMPlayerController = CastChecked<ASMPlayerController>(GetController());
 	}
-}
-
-void ASMPlayerCharacter::Move(const FInputActionValue& InputActionValue)
-{
-	const FVector2D InputScalar = InputActionValue.Get<FVector2D>().GetSafeNormal();
-	const FRotator CameraYawRotation(0.0, Camera->GetComponentRotation().Yaw, 0.0);
-	const FVector ForwardDirection = FRotationMatrix(CameraYawRotation).GetUnitAxis(EAxis::X);
-	const FVector RightDirection = FRotationMatrix(CameraYawRotation).GetUnitAxis(EAxis::Y);
-	const FVector MoveVector = (ForwardDirection * InputScalar.X) + (RightDirection * InputScalar.Y);
-
-	AddMovementInput(MoveVector);
 }
