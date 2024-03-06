@@ -3,7 +3,6 @@
 
 #include "SMPlayerCharacter.h"
 
-#include "EngineUtils.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "SMCharacterAssetData.h"
