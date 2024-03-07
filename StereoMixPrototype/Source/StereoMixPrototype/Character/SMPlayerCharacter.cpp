@@ -3,9 +3,11 @@
 
 #include "SMPlayerCharacter.h"
 
+#include "EngineUtils.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "SMCharacterAssetData.h"
+#include "Animation/SMCharacterAnimInstance.h"
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -45,6 +47,13 @@ ASMPlayerCharacter::ASMPlayerCharacter()
 	bCanControl = true;
 }
 
+void ASMPlayerCharacter::PostInitializeComponents()
+{
+	Super::PostInitializeComponents();
+
+	StoredSMAnimInstance = CastChecked<USMCharacterAnimInstance>(GetMesh()->GetAnimInstance());
+}
+
 void ASMPlayerCharacter::PossessedBy(AController* NewController)
 {
 	Super::PossessedBy(NewController);
@@ -65,8 +74,7 @@ void ASMPlayerCharacter::BeginPlay()
 	{
 		AimPlane = GetWorld()->SpawnActor<AAimPlane>();
 		const FAttachmentTransformRules AttachmentTransformRules(EAttachmentRule::SnapToTarget, true);
-		const bool bSuccess = AimPlane->AttachToActor(this, AttachmentTransformRules);
-		if (bSuccess) {}
+		AimPlane->AttachToActor(this, AttachmentTransformRules);
 	}
 
 	InitCharacterControl();
@@ -282,6 +290,8 @@ float ASMPlayerCharacter::DistanceHeightFromFloor()
 void ASMPlayerCharacter::Catch()
 {
 	HandleCatch();
+	StoredSMAnimInstance->PlayCatch();
+	ServerRPCPlayCatchAnimation();
 }
 
 void ASMPlayerCharacter::HandleCatch()
@@ -403,14 +413,41 @@ void ASMPlayerCharacter::HandlePullEnd()
 	}
 }
 
+void ASMPlayerCharacter::ServerRPCPlayCatchAnimation_Implementation() const
+{
+	for (const APlayerController* PlayerController : TActorRange<APlayerController>(GetWorld()))
+	{
+		if (!PlayerController->IsLocalController())
+		{
+			if (PlayerController != GetController())
+			{
+				const ASMPlayerCharacter* SMPlayerCharacter = Cast<ASMPlayerCharacter>(PlayerController->GetPawn());
+				SMPlayerCharacter->ClientRPCPlayCatchAnimation(this);
+			}
+		}
+	} 
+}
+
+void ASMPlayerCharacter::ClientRPCPlayCatchAnimation_Implementation(const ASMPlayerCharacter* InPlayAnimationCharacter) const
+{
+	InPlayAnimationCharacter->StoredSMAnimInstance->PlayCatch();
+}
+
+void ASMPlayerCharacter::MulticastRPCPlayCaughtAnimation_Implementation(const ASMPlayerCharacter* InPlayAnimationCharacter) const
+{
+	InPlayAnimationCharacter->StoredSMAnimInstance->PlayCaught();
+}
+
 void ASMPlayerCharacter::MulticastRPCAttachToCaster_Implementation(AActor* InCaster, AActor* InTarget)
 {
 	NET_LOG(LogSMNetwork, Log, TEXT("어태치 시작"))
 
 	const FAttachmentTransformRules AttachmentTransformRules(EAttachmentRule::SnapToTarget, false);
 	const ASMPlayerCharacter* SMPlayerCharacter = Cast<ASMPlayerCharacter>(InCaster);
+	ASMPlayerCharacter* SMTargetCharacter = Cast<ASMPlayerCharacter>(InTarget);
 	if (SMPlayerCharacter)
 	{
-		InTarget->AttachToComponent(SMPlayerCharacter->GetMesh(), AttachmentTransformRules, TEXT("HoldSocket"));
+		SMTargetCharacter->AttachToComponent(SMPlayerCharacter->GetMesh(), AttachmentTransformRules, TEXT("CatchSocket"));
+		MulticastRPCPlayCaughtAnimation(SMTargetCharacter);
 	}
 }

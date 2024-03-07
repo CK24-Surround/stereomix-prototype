@@ -3,3 +3,4 @@
 #pragma once
 
 #define CHARACTER_ASSET_PATH TEXT("/Script/StereoMixPrototype.SMCharacterAssetData'/Game/StereoMixPrototype/Data/Asset/DA_CharacterAsset.DA_CharacterAsset'")
+#define CHARACTER_ANIMATION_ASSET_PATH TEXT("/Script/StereoMixPrototype.SMCharacterAnimationAssetData'/Game/StereoMixPrototype/Data/Asset/DA_CharacterAnimationAsset.DA_CharacterAnimationAsset'")

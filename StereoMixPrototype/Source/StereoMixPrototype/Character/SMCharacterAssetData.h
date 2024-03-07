@@ -27,5 +27,5 @@ public:
 	TObjectPtr<const UInputAction> JumpAction;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
-	TObjectPtr<const UInputAction> HoldAction; 
+	TObjectPtr<const UInputAction> HoldAction;
 };

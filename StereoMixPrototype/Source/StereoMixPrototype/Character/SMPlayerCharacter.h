@@ -4,8 +4,11 @@
 
 #include "CoreMinimal.h"
 #include "Character/SMCharacterBase.h"
+#include "GameFramework/CharacterMovementComponent.h"
+#include "Interface/SMCharacterAnimationInterface.h"
 #include "SMPlayerCharacter.generated.h"
 
+class USMCharacterAnimInstance;
 class AAimPlane;
 class ASMPlayerController;
 class USpringArmComponent;
@@ -25,12 +28,15 @@ enum class EPlayerCharacterState : uint8
  * 
  */
 UCLASS()
-class STEREOMIXPROTOTYPE_API ASMPlayerCharacter : public ASMCharacterBase
+class STEREOMIXPROTOTYPE_API ASMPlayerCharacter : public ASMCharacterBase, public ISMCharacterAnimationInterface
 {
 	GENERATED_BODY()
 
 public:
 	ASMPlayerCharacter();
+
+public:
+	virtual void PostInitializeComponents() override;
 
 public:
 	virtual void PossessedBy(AController* NewController) override;
@@ -82,7 +88,7 @@ protected:
 
 	UFUNCTION()
 	void OnRep_bEnableCollision();
-
+	
 	UPROPERTY(ReplicatedUsing = OnRep_CurrentState)
 	EPlayerCharacterState CurrentState;
 
@@ -143,4 +149,22 @@ protected: // Hold Section
 	void MulticastRPCAttachToCaster(AActor* InCaster, AActor* InTarget);
 
 	FPullData PullData;
+
+protected: // Animation Section
+	UFUNCTION(Server, Unreliable)
+	void ServerRPCPlayCatchAnimation() const;
+
+	UFUNCTION(Client, Unreliable)
+	void ClientRPCPlayCatchAnimation(const ASMPlayerCharacter* InPlayAnimationCharacter) const;
+
+	UFUNCTION(NetMulticast, Unreliable)
+	void MulticastRPCPlayCaughtAnimation(const ASMPlayerCharacter* InPlayAnimationCharacter) const;
+	
+	UPROPERTY()
+	TObjectPtr<USMCharacterAnimInstance> StoredSMAnimInstance;
+	
+public: // Animation Interface Section
+	FORCEINLINE virtual bool GetHasAcceleration() override { return GetCharacterMovement()->GetCurrentAcceleration() != FVector::ZeroVector; }
+	FORCEINLINE virtual bool GetIsFalling() override { return GetCharacterMovement()->IsFalling(); }
+	FORCEINLINE virtual float GetZVelocity() override { return GetCharacterMovement()->Velocity.Z; }
 };
