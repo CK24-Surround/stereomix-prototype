@@ -333,12 +333,15 @@ void ASMPlayerCharacter::OnRep_CurrentState()
 	{
 		case EPlayerCharacterState::Normal:
 		{
-			GetCharacterMovement()->GravityScale = 2.0f;
+			NET_LOG(LogSMNetwork, Log, TEXT("움직임 재개"));
+			GetCharacterMovement()->SetMovementMode(MOVE_Walking);
 			break;
 		}
 		case EPlayerCharacterState::Caught:
 		{
-			GetCharacterMovement()->GravityScale = 0.0f;
+			NET_LOG(LogSMNetwork, Log, TEXT("움직임 정지"));
+			GetCharacterMovement()->SetMovementMode(MOVE_None);
+
 			break;
 		}
 	}
@@ -413,6 +416,20 @@ void ASMPlayerCharacter::HandlePullEnd()
 	}
 }
 
+void ASMPlayerCharacter::MulticastRPCAttachToCaster_Implementation(AActor* InCaster, AActor* InTarget)
+{
+	NET_LOG(LogSMNetwork, Log, TEXT("어태치 시작"))
+
+	const FAttachmentTransformRules AttachmentTransformRules(EAttachmentRule::SnapToTarget, false);
+	const ASMPlayerCharacter* SMPlayerCharacter = Cast<ASMPlayerCharacter>(InCaster);
+	ASMPlayerCharacter* SMTargetCharacter = Cast<ASMPlayerCharacter>(InTarget);
+	if (SMPlayerCharacter)
+	{
+		SMTargetCharacter->AttachToComponent(SMPlayerCharacter->GetMesh(), AttachmentTransformRules, TEXT("CatchSocket"));
+		MulticastRPCPlayCaughtAnimation(SMTargetCharacter);
+	}
+}
+
 void ASMPlayerCharacter::ServerRPCPlayCatchAnimation_Implementation() const
 {
 	for (const APlayerController* PlayerController : TActorRange<APlayerController>(GetWorld()))
@@ -436,18 +453,4 @@ void ASMPlayerCharacter::ClientRPCPlayCatchAnimation_Implementation(const ASMPla
 void ASMPlayerCharacter::MulticastRPCPlayCaughtAnimation_Implementation(const ASMPlayerCharacter* InPlayAnimationCharacter) const
 {
 	InPlayAnimationCharacter->StoredSMAnimInstance->PlayCaught();
-}
-
-void ASMPlayerCharacter::MulticastRPCAttachToCaster_Implementation(AActor* InCaster, AActor* InTarget)
-{
-	NET_LOG(LogSMNetwork, Log, TEXT("어태치 시작"))
-
-	const FAttachmentTransformRules AttachmentTransformRules(EAttachmentRule::SnapToTarget, false);
-	const ASMPlayerCharacter* SMPlayerCharacter = Cast<ASMPlayerCharacter>(InCaster);
-	ASMPlayerCharacter* SMTargetCharacter = Cast<ASMPlayerCharacter>(InTarget);
-	if (SMPlayerCharacter)
-	{
-		SMTargetCharacter->AttachToComponent(SMPlayerCharacter->GetMesh(), AttachmentTransformRules, TEXT("CatchSocket"));
-		MulticastRPCPlayCaughtAnimation(SMTargetCharacter);
-	}
 }
