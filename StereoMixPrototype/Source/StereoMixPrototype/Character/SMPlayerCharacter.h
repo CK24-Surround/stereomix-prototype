@@ -75,10 +75,6 @@ protected: // Move Section
 	/** GetMousePointingDirection()를 통해 얻어낸 방향으로 캐릭터를 회전시킵니다. */
 	void UpdateRotateToMousePointer();
 
-	/** 캐릭터가 회전된 Yaw값을 서버에서 적용합니다. */
-	UFUNCTION(Server, Unreliable)
-	void ServerRotateToMousePointer(float InYaw);
-
 public: // State Section
 	void SetEnableCollision(bool bInEnableCollision) { bEnableCollision = bInEnableCollision; }
 

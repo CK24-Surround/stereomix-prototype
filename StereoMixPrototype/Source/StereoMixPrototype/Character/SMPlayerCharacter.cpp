@@ -20,7 +20,7 @@
 
 ASMPlayerCharacter::ASMPlayerCharacter()
 {
-	bUseControllerRotationYaw = false;
+	bUseControllerRotationYaw = true;
 
 	GetMesh()->SetCollisionProfileName("NoCollision");
 
@@ -194,17 +194,13 @@ void ASMPlayerCharacter::InitCharacterControl()
 
 FVector ASMPlayerCharacter::GetMousePointingDirection()
 {
-	if (StoredSMPlayerController)
+	FHitResult HitResult;
+	const bool Succeed = StoredSMPlayerController->GetHitResultUnderCursor(TC_AIM_PLANE, false, HitResult);
+	if (Succeed)
 	{
-		FHitResult HitResult;
-		const bool Succeed = StoredSMPlayerController->GetHitResultUnderCursor(TC_AIM_PLANE, false, HitResult);
-
-		if (Succeed)
-		{
-			const FVector MouseLocation = HitResult.Location;
-			const FVector MouseDirection = (MouseLocation - GetActorLocation()).GetSafeNormal();
-			return MouseDirection;
-		}
+		const FVector MouseLocation = HitResult.Location;
+		const FVector MouseDirection = (MouseLocation - GetActorLocation()).GetSafeNormal();
+		return MouseDirection;
 	}
 
 	return FVector::ZeroVector;
@@ -223,19 +219,8 @@ void ASMPlayerCharacter::UpdateRotateToMousePointer()
 		const FRotator MousePointingRotation = FRotationMatrix::MakeFromX(MousePointingDirection).Rotator();
 		const FRotator NewRotation = FRotator(0.0, MousePointingRotation.Yaw, 0.0);
 
-		SetActorRotation(NewRotation);
-
-		if (!HasAuthority())
-		{
-			ServerRotateToMousePointer(NewRotation.Yaw);
-		}
+		StoredSMPlayerController->SetControlRotation(NewRotation);
 	}
-}
-
-void ASMPlayerCharacter::ServerRotateToMousePointer_Implementation(float InYaw)
-{
-	// 트랜스폼은 리플리케이트 무브먼트 활성화 시 자동으로 모든 클라이언트에 동기화하기 때문에 서버에서만 처리해주면 됩니다.
-	SetActorRotation(FRotator(0.0, InYaw, 0.0));
 }
 
 void ASMPlayerCharacter::OnRep_bCanControl()
@@ -243,11 +228,17 @@ void ASMPlayerCharacter::OnRep_bCanControl()
 	NET_LOG(LogSMNetwork, Log, TEXT("컨트롤 상태 변경 감지"))
 	if (bCanControl)
 	{
+		NET_LOG(LogSMNetwork, Log, TEXT("움직임 재개"));
 		EnableInput(StoredSMPlayerController);
+		bUseControllerRotationYaw = true;
+		GetCharacterMovement()->SetMovementMode(MOVE_Walking);
 	}
 	else
 	{
+		NET_LOG(LogSMNetwork, Log, TEXT("움직임 정지"));
 		DisableInput(StoredSMPlayerController);
+		bUseControllerRotationYaw = false;
+		GetCharacterMovement()->SetMovementMode(MOVE_None);
 	}
 }
 
@@ -333,15 +324,12 @@ void ASMPlayerCharacter::OnRep_CurrentState()
 	{
 		case EPlayerCharacterState::Normal:
 		{
-			NET_LOG(LogSMNetwork, Log, TEXT("움직임 재개"));
-			GetCharacterMovement()->SetMovementMode(MOVE_Walking);
+			NET_LOG(LogSMNetwork, Log, TEXT("현재 캐릭터 상태: Normal"));
 			break;
 		}
 		case EPlayerCharacterState::Caught:
 		{
-			NET_LOG(LogSMNetwork, Log, TEXT("움직임 정지"));
-			GetCharacterMovement()->SetMovementMode(MOVE_None);
-
+			NET_LOG(LogSMNetwork, Log, TEXT("현재 캐릭터 상태: Caught"));
 			break;
 		}
 	}
@@ -357,6 +345,8 @@ void ASMPlayerCharacter::ServerRPCPerformPull_Implementation(ASMPlayerCharacter*
 	NET_LOG(LogSMNetwork, Log, TEXT("당기기 시작"));
 
 	// 클라이언트 제어권 박탈 및 충돌 판정 비활성화
+	InTargetCharacter->CurrentState = EPlayerCharacterState::Caught;
+	
 	InTargetCharacter->SetCanControl(false);
 	InTargetCharacter->OnRep_bCanControl();
 
@@ -364,9 +354,6 @@ void ASMPlayerCharacter::ServerRPCPerformPull_Implementation(ASMPlayerCharacter*
 
 	InTargetCharacter->SetEnableCollision(false);
 	InTargetCharacter->OnRep_bEnableCollision();
-
-	InTargetCharacter->CurrentState = EPlayerCharacterState::Caught;
-	InTargetCharacter->OnRep_CurrentState();
 
 	// 당기기에 필요한 데이터 할당
 	InTargetCharacter->PullData.bIsPulling = true;
@@ -442,7 +429,7 @@ void ASMPlayerCharacter::ServerRPCPlayCatchAnimation_Implementation() const
 				SMPlayerCharacter->ClientRPCPlayCatchAnimation(this);
 			}
 		}
-	} 
+	}
 }
 
 void ASMPlayerCharacter::ClientRPCPlayCatchAnimation_Implementation(const ASMPlayerCharacter* InPlayAnimationCharacter) const
