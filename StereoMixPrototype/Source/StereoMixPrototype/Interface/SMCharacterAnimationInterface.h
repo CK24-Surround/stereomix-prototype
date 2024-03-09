@@ -25,4 +25,9 @@ public:
 	virtual bool GetHasAcceleration() = 0;
 	virtual bool GetIsFalling() = 0;
 	virtual float GetZVelocity() = 0;
+
+	virtual void HandleCatch() = 0;
+	virtual void HandleSmash() = 0;
+
+	virtual void OnStandUpAnimationEnded() = 0;
 };

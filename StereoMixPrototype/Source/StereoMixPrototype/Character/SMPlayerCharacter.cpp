@@ -20,6 +20,8 @@
 
 ASMPlayerCharacter::ASMPlayerCharacter()
 {
+	bUseControllerRotationRoll = true;
+	bUseControllerRotationPitch = true;
 	bUseControllerRotationYaw = true;
 
 	GetMesh()->SetCollisionProfileName("NoCollision");
@@ -46,6 +48,10 @@ ASMPlayerCharacter::ASMPlayerCharacter()
 	bEnableCollision = true;
 	bEnableMovement = true;
 	bCanControl = true;
+
+	// Design
+	CatchTime = 0.25f;
+	StandUpTime = 3.0f;
 }
 
 void ASMPlayerCharacter::PostInitializeComponents()
@@ -79,6 +85,8 @@ void ASMPlayerCharacter::BeginPlay()
 	}
 
 	InitCharacterControl();
+
+	InitDesignData();
 }
 
 void ASMPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -91,6 +99,7 @@ void ASMPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputC
 		EnhancedInputComponent->BindAction(AssetData->MoveAction, ETriggerEvent::Triggered, this, &ASMPlayerCharacter::Move);
 		EnhancedInputComponent->BindAction(AssetData->JumpAction, ETriggerEvent::Triggered, this, &ASMPlayerCharacter::Jump);
 		EnhancedInputComponent->BindAction(AssetData->HoldAction, ETriggerEvent::Started, this, &ASMPlayerCharacter::Catch);
+		EnhancedInputComponent->BindAction(AssetData->SmashAction, ETriggerEvent::Started, this, &ASMPlayerCharacter::Smash);
 	}
 }
 
@@ -120,6 +129,8 @@ void ASMPlayerCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& O
 	DOREPLIFETIME(ASMPlayerCharacter, bEnableCollision);
 	DOREPLIFETIME(ASMPlayerCharacter, bCanControl);
 	DOREPLIFETIME(ASMPlayerCharacter, bEnableMovement);
+	DOREPLIFETIME(ASMPlayerCharacter, CaughtCharacter);
+	DOREPLIFETIME(ASMPlayerCharacter, TempStandUpCastCharacter);
 }
 
 void ASMPlayerCharacter::OnRep_Controller()
@@ -132,6 +143,11 @@ void ASMPlayerCharacter::OnRep_Controller()
 		// 서버에선 OnRep_Controller가 호출되지 않고, 클라이언트에서는 PossessedBy가 호출되지 않기 때문에 서버는 여기서 컨트롤러를 캐싱합니다.
 		StoredSMPlayerController = CastChecked<ASMPlayerController>(GetController());
 	}
+}
+
+void ASMPlayerCharacter::InitDesignData()
+{
+	PullData.TotalTime = CatchTime;
 }
 
 void ASMPlayerCharacter::InitCamera()
@@ -238,54 +254,60 @@ void ASMPlayerCharacter::OnRep_bEnableMovement()
 {
 	if (bEnableMovement)
 	{
-		NET_LOG(LogSMNetwork, Log, TEXT("움직임 활성화"));
+		NET_LOG(LogSMCharacter, Log, TEXT("움직임 활성화"));
 		GetCharacterMovement()->SetMovementMode(MOVE_Walking);
 	}
 	else
 	{
-		NET_LOG(LogSMNetwork, Log, TEXT("움직임 비활성화"));
+		NET_LOG(LogSMCharacter, Log, TEXT("움직임 비활성화"));
 		GetCharacterMovement()->SetMovementMode(MOVE_None);
 	}
 }
 
 void ASMPlayerCharacter::SetCurrentState(EPlayerCharacterState InState)
 {
-	if (HasAuthority())
+	if (!HasAuthority())
 	{
-		CurrentState = InState;
-		OnRep_CurrentState();
+		return;
 	}
+
+	CurrentState = InState;
+	OnRep_CurrentState();
 }
 
 void ASMPlayerCharacter::SetEnableCollision(bool bInEnableCollision)
 {
-	if (HasAuthority())
+	if (!HasAuthority())
 	{
-		bEnableCollision = bInEnableCollision;
-		OnRep_bEnableCollision();
+		return;
 	}
+
+	bEnableCollision = bInEnableCollision;
+	OnRep_bEnableCollision();
 }
 
 void ASMPlayerCharacter::SetCanControl(bool bInEnableControl)
 {
-	if (HasAuthority())
+	if (!HasAuthority())
 	{
-		bCanControl = bInEnableControl;
-		OnRep_bCanControl();
+		return;
 	}
+
+	bCanControl = bInEnableControl;
+	OnRep_bCanControl();
 }
 
 void ASMPlayerCharacter::OnRep_bCanControl()
 {
 	if (bCanControl)
 	{
-		NET_LOG(LogSMNetwork, Log, TEXT("컨트롤 활성화"))
+		NET_LOG(LogSMCharacter, Log, TEXT("컨트롤 활성화"))
 		EnableInput(StoredSMPlayerController);
 		bUseControllerRotationYaw = true;
 	}
 	else
 	{
-		NET_LOG(LogSMNetwork, Log, TEXT("컨트롤 비활성화"))
+		NET_LOG(LogSMCharacter, Log, TEXT("컨트롤 비활성화"))
 		DisableInput(StoredSMPlayerController);
 		bUseControllerRotationYaw = false;
 	}
@@ -295,14 +317,14 @@ void ASMPlayerCharacter::OnJumped_Implementation()
 {
 	Super::OnJumped_Implementation();
 
-	UE_LOG(LogSMPlayerCharacter, Log, TEXT("Jumped!"));
+	NET_LOG(LogSMCharacter, Log, TEXT("Jumped!"));
 }
 
 void ASMPlayerCharacter::Landed(const FHitResult& Hit)
 {
 	Super::Landed(Hit);
 
-	UE_LOG(LogSMPlayerCharacter, Log, TEXT("Landed! Floor Info: %s"), *Hit.GetComponent()->GetName());
+	NET_LOG(LogSMCharacter, Log, TEXT("Landed! Floor Info: %s"), *Hit.GetComponent()->GetName());
 }
 
 float ASMPlayerCharacter::DistanceHeightFromFloor()
@@ -317,7 +339,7 @@ float ASMPlayerCharacter::DistanceHeightFromFloor()
 	if (bSuccess)
 	{
 		const float Distance = (HitResult.Location - Start).Size();
-		UE_LOG(LogSMPlayerCharacter, Warning, TEXT("Height: %f"), Distance);
+		NET_LOG(LogSMCharacter, Warning, TEXT("Height: %f"), Distance);
 
 		return Distance;
 	}
@@ -327,18 +349,28 @@ float ASMPlayerCharacter::DistanceHeightFromFloor()
 	}
 }
 
+void ASMPlayerCharacter::SetCaughtCharacter(ASMPlayerCharacter* InCaughtCharacter)
+{
+	if (HasAuthority())
+	{
+		CaughtCharacter = InCaughtCharacter;
+	}
+}
+
 void ASMPlayerCharacter::Catch()
 {
-	HandleCatch();
-	StoredSMAnimInstance->PlayCatch();
-	ServerRPCPlayCatchAnimation();
+	if (!CaughtCharacter)
+	{
+		StoredSMAnimInstance->PlayCatch();
+		ServerRPCPlayCatchAnimation();
+	}
 }
 
 void ASMPlayerCharacter::HandleCatch()
 {
 	if (IsLocallyControlled())
 	{
-		NET_LOG(LogSMNetwork, Log, TEXT("잡기 시전"));
+		NET_LOG(LogSMCharacter, Log, TEXT("잡기 시전"));
 
 		// 충돌 로직
 		FHitResult HitResult;
@@ -352,7 +384,7 @@ void ASMPlayerCharacter::HandleCatch()
 		// 충돌 시
 		if (bSuccess)
 		{
-			NET_LOG(LogSMNetwork, Log, TEXT("잡기 적중"));
+			NET_LOG(LogSMCharacter, Log, TEXT("잡기 적중"));
 			ASMPlayerCharacter* HitPlayerCharacter = Cast<ASMPlayerCharacter>(HitResult.GetActor());
 			if (HitPlayerCharacter)
 			{
@@ -373,12 +405,17 @@ void ASMPlayerCharacter::OnRep_CurrentState()
 	{
 		case EPlayerCharacterState::Normal:
 		{
-			NET_LOG(LogSMNetwork, Log, TEXT("현재 캐릭터 상태: Normal"));
+			NET_LOG(LogSMCharacter, Log, TEXT("현재 캐릭터 상태: Normal"));
 			break;
 		}
 		case EPlayerCharacterState::Caught:
 		{
-			NET_LOG(LogSMNetwork, Log, TEXT("현재 캐릭터 상태: Caught"));
+			NET_LOG(LogSMCharacter, Log, TEXT("현재 캐릭터 상태: Caught"));
+			break;
+		}
+		case EPlayerCharacterState::Down:
+		{
+			NET_LOG(LogSMCharacter, Log, TEXT("현재 캐릭터 상태: Down"));
 			break;
 		}
 	}
@@ -386,12 +423,13 @@ void ASMPlayerCharacter::OnRep_CurrentState()
 
 void ASMPlayerCharacter::OnRep_bEnableCollision()
 {
+	NET_LOG(LogSMCharacter, Log, TEXT("충돌 %s"), bEnableCollision ? TEXT("활성화") : TEXT("비활성화"));
 	SetActorEnableCollision(bEnableCollision);
 }
 
 void ASMPlayerCharacter::ServerRPCPerformPull_Implementation(ASMPlayerCharacter* InTargetCharacter)
 {
-	NET_LOG(LogSMNetwork, Log, TEXT("당기기 시작"));
+	NET_LOG(LogSMCharacter, Log, TEXT("당기기 시작"));
 
 	// 클라이언트 제어권 박탈 및 충돌 판정 비활성화
 	InTargetCharacter->SetAutonomousProxy(false);
@@ -439,28 +477,31 @@ void ASMPlayerCharacter::HandlePullEnd()
 {
 	if (HasAuthority())
 	{
-		NET_LOG(LogSMNetwork, Log, TEXT("당기기 종료"))
+		NET_LOG(LogSMCharacter, Log, TEXT("당기기 종료"))
 		PullData.bIsPulling = false;
 
-		NET_LOG(LogSMNetwork, Log, TEXT("어태치 시작"))
+		NET_LOG(LogSMCharacter, Log, TEXT("어태치 시작"))
 		MulticastRPCAttachToCaster(PullData.Caster, this);
 		StoredSMPlayerController->SetViewTargetWithBlend(PullData.Caster, 0.1f);
 	}
 }
 
-void ASMPlayerCharacter::MulticastRPCAttachToCaster_Implementation(AActor* InCaster, AActor* InTarget)
+void ASMPlayerCharacter::MulticastRPCAttachToCaster_Implementation(ASMPlayerCharacter* InCaster, ASMPlayerCharacter* InTarget)
 {
 	const FAttachmentTransformRules AttachmentTransformRules(EAttachmentRule::SnapToTarget, false);
-	const ASMPlayerCharacter* SMPlayerCharacter = Cast<ASMPlayerCharacter>(InCaster);
-	ASMPlayerCharacter* SMTargetCharacter = Cast<ASMPlayerCharacter>(InTarget);
-	if (SMPlayerCharacter)
+	if (InCaster && InTarget)
 	{
 		// 플레이어의 상태를 잡힘으로 변경합니다.
-		SMTargetCharacter->SetCurrentState(EPlayerCharacterState::Caught);
-		SMTargetCharacter->AttachToComponent(SMPlayerCharacter->GetMesh(), AttachmentTransformRules, TEXT("CatchSocket"));
+		if (HasAuthority())
+		{
+			InCaster->SetCaughtCharacter(this);
+		}
+
+		InTarget->SetCurrentState(EPlayerCharacterState::Caught);
+		InTarget->AttachToComponent(InCaster->GetMesh(), AttachmentTransformRules, TEXT("CatchSocket"));
 		if (!HasAuthority())
 		{
-			SMTargetCharacter->StoredSMAnimInstance->PlayCaught();
+			InTarget->StoredSMAnimInstance->PlayCaught();
 		}
 	}
 }
@@ -483,4 +524,176 @@ void ASMPlayerCharacter::ServerRPCPlayCatchAnimation_Implementation() const
 void ASMPlayerCharacter::ClientRPCPlayCatchAnimation_Implementation(const ASMPlayerCharacter* InPlayAnimationCharacter) const
 {
 	InPlayAnimationCharacter->StoredSMAnimInstance->PlayCatch();
+}
+
+void ASMPlayerCharacter::Smash()
+{
+	if (CaughtCharacter)
+	{
+		StoredSMAnimInstance->PlaySmash();
+		ServerRPCPlaySmashAnimation();
+	}
+}
+
+void ASMPlayerCharacter::ServerRPCPlaySmashAnimation_Implementation()
+{
+	SetCanControl(false);
+
+	for (const APlayerController* PlayerController : TActorRange<APlayerController>(GetWorld()))
+	{
+		if (!PlayerController)
+		{
+			continue;
+		}
+
+		if (!PlayerController->IsLocalController())
+		{
+			if (PlayerController != GetController())
+			{
+				const ASMPlayerCharacter* SMPlayerCharacter = Cast<ASMPlayerCharacter>(PlayerController->GetPawn());
+				SMPlayerCharacter->ClientRPCPlaySmashAnimation(this);
+			}
+		}
+	}
+}
+
+void ASMPlayerCharacter::ClientRPCPlaySmashAnimation_Implementation(const ASMPlayerCharacter* InPlayAnimationCharacter) const
+{
+	if (InPlayAnimationCharacter)
+	{
+		InPlayAnimationCharacter->StoredSMAnimInstance->PlaySmash();
+	}
+}
+
+void ASMPlayerCharacter::HandleSmash()
+{
+	if (IsLocallyControlled())
+	{
+		NET_LOG(LogSMCharacter, Log, TEXT("스매시"));
+
+		if (CaughtCharacter)
+		{
+			CaughtCharacter->StoredSMAnimInstance->PlayDownStart();
+
+			// 서버에서 해당 액터의 위치를 받아오기전에 미리 이동시켜두고 나중에 받은 데이터로는 검증을 수행합니다.
+			// 여기선 딜레이를 줄이기 위해 작성했습니다. 아니면 아예 앞으로 이런 로직은 시전자 클라에서 계산을 담당하고 서버로는 좌표값만 전송하고 반영하는 것도 염두 중입니다.
+			const FVector DownLocation = GetActorLocation() + (GetActorForwardVector() * 150.0f);
+			FRotator DownRotation = FRotationMatrix::MakeFromX(GetActorForwardVector()).Rotator();
+			DownRotation.Pitch = 0.0;
+			DownRotation.Roll = 0.0;
+			CaughtCharacter->SetActorLocationAndRotation(DownLocation, DownRotation);
+
+			ServerRPCDetachToCaster();
+		}
+	}
+}
+
+void ASMPlayerCharacter::ServerRPCDetachToCaster_Implementation()
+{
+	if (!HasAuthority())
+	{
+		return;
+	}
+
+	SetCanControl(true);
+	// TempStandUpCastCharacter 버그:
+	// 대상이 기상하기 전에 다른 타겟을 매치면 포인터가 옮겨지는 버그 있음
+	TempStandUpCastCharacter = CaughtCharacter;
+	MulticastRPCDetachToCaster(this, CaughtCharacter);
+	
+	FTimerHandle TimerHandle;
+	GetWorldTimerManager().SetTimer(TimerHandle, this, &ASMPlayerCharacter::MulticastRPCHandleStandUp, StandUpTime);
+
+	for (const APlayerController* PlayerController : TActorRange<APlayerController>(GetWorld()))
+	{
+		if (!PlayerController)
+		{
+			continue;
+		}
+
+		if (!PlayerController->IsLocalController())
+		{
+			if (PlayerController != GetController())
+			{
+				const ASMPlayerCharacter* PlayerCharacter = Cast<ASMPlayerCharacter>(PlayerController->GetPawn());
+				if (PlayerCharacter)
+				{
+					PlayerCharacter->ClientRPCPlayDownStartAnimation(TempStandUpCastCharacter);
+				}
+			}
+		}
+	}
+}
+
+void ASMPlayerCharacter::MulticastRPCDetachToCaster_Implementation(ASMPlayerCharacter* InCaster, ASMPlayerCharacter* InTarget)
+{
+	if (InCaster && InTarget)
+	{
+		NET_LOG(LogSMCharacter, Log, TEXT("디태치 성공"));
+		const FDetachmentTransformRules DetachmentTransformRules(EDetachmentRule::KeepWorld, false);
+		InTarget->DetachFromActor(DetachmentTransformRules);
+
+		if (HasAuthority())
+		{
+			SetCaughtCharacter(nullptr);
+
+			InTarget->SetEnableCollision(true);
+			InTarget->SetCurrentState(EPlayerCharacterState::Normal);
+			InTarget->StoredSMPlayerController->SetViewTargetWithBlend(InTarget, 0.3f);
+
+			const FVector DownLocation = InCaster->GetActorLocation() + (InCaster->GetActorForwardVector() * 150.0f);
+			FRotator DownRotation = FRotationMatrix::MakeFromX(InCaster->GetActorForwardVector()).Rotator();
+			DownRotation.Pitch = 0.0;
+			DownRotation.Roll = 0.0;
+			InTarget->SetAutonomousProxy(true);
+			InTarget->SetActorLocationAndRotation(DownLocation, DownRotation);
+			// InTarget->ClientRPCSetActorRotation(DownRotation);
+			InTarget->GetController()->SetControlRotation(DownRotation);
+			NET_LOG(LogSMCharacter, Log, TEXT("%s"), *DownRotation.ToString());
+		}
+	}
+}
+
+void ASMPlayerCharacter::ClientRPCPlayDownStartAnimation_Implementation(const ASMPlayerCharacter* InAnimationPlayCharacter) const
+{
+	if (InAnimationPlayCharacter)
+	{
+		InAnimationPlayCharacter->StoredSMAnimInstance->PlayDownStart();
+	}
+}
+
+void ASMPlayerCharacter::MulticastRPCHandleStandUp_Implementation()
+{
+	if (!HasAuthority())
+	{
+		if (TempStandUpCastCharacter)
+		{
+			TempStandUpCastCharacter->StoredSMAnimInstance->PlayDownEnd();
+		}
+	}
+
+	if (HasAuthority())
+	{
+		// TempStandUpCastCharacter->SetAutonomousProxy(true);
+	}
+}
+
+void ASMPlayerCharacter::OnStandUpAnimationEnded()
+{
+	if (IsLocallyControlled())
+	{
+		ServerRPCOnStandUpEnd();
+	}
+}
+
+void ASMPlayerCharacter::ClientRPCSetActorRotation_Implementation(FRotator InRotation)
+{
+	SetActorRotation(InRotation);
+}
+
+void ASMPlayerCharacter::ServerRPCOnStandUpEnd_Implementation()
+{
+	NET_LOG(LogSMCharacter, Warning, TEXT("Begin"));
+	SetCanControl(true);
+	SetEnableMovement(true);
 }

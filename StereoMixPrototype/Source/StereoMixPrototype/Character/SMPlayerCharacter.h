@@ -15,13 +15,14 @@ class USpringArmComponent;
 class UCameraComponent;
 struct FInputActionValue;
 
-DECLARE_LOG_CATEGORY_CLASS(LogSMPlayerCharacter, Log, All);
+DECLARE_LOG_CATEGORY_CLASS(LogSMCharacter, Log, All);
 
 UENUM(BlueprintType)
 enum class EPlayerCharacterState : uint8
 {
 	Normal,
-	Caught
+	Caught,
+	Down
 };
 
 /**
@@ -51,6 +52,15 @@ public:
 public:
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 	virtual void OnRep_Controller() override;
+
+protected: // Design Section
+	void InitDesignData();
+
+	UPROPERTY(EditDefaultsOnly, Category = "Design(Catch)")
+	float CatchTime;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Design(Stand Up)")
+	float StandUpTime;
 
 protected: // Camera Section
 	/** 카메라 초기세팅에 사용되는 함수 */
@@ -133,20 +143,22 @@ protected: // Util Section
 	/** 현재 캐릭터의 위치에서 가장 가까운 바닥까지의 거리를 반환합니다 */
 	float DistanceHeightFromFloor();
 
-protected: // Catch Section
+public: // Catch Section
+	void SetCaughtCharacter(ASMPlayerCharacter* InCaughtCharacter);
+
+protected:
 	struct FPullData
 	{
-		AActor* Caster;
+		ASMPlayerCharacter* Caster;
 		FVector StartLocation;
 		FVector EndLocation;
 		uint32 bIsPulling = false;
 		float ElapsedTime = 0.0f;
-		float TotalTime = 0.1f;
+		float TotalTime = 0.25f;
 	};
 
 	void Catch();
-
-	void HandleCatch();
+	virtual void HandleCatch() override;
 
 	UFUNCTION(Server, Reliable)
 	void ServerRPCPerformPull(ASMPlayerCharacter* InTargetCharacter);
@@ -156,22 +168,59 @@ protected: // Catch Section
 	void HandlePullEnd();
 
 	UFUNCTION(NetMulticast, Reliable)
-	void MulticastRPCAttachToCaster(AActor* InCaster, AActor* InTarget);
+	void MulticastRPCAttachToCaster(ASMPlayerCharacter* InCaster, ASMPlayerCharacter* InTarget);
 
-	FPullData PullData;
-
-protected: // Animation Section
 	UFUNCTION(Server, Unreliable)
 	void ServerRPCPlayCatchAnimation() const;
 
 	UFUNCTION(Client, Unreliable)
 	void ClientRPCPlayCatchAnimation(const ASMPlayerCharacter* InPlayAnimationCharacter) const;
 
+	FPullData PullData;
+
 	UPROPERTY()
 	TObjectPtr<USMCharacterAnimInstance> StoredSMAnimInstance;
+
+	UPROPERTY(Replicated)
+	TObjectPtr<ASMPlayerCharacter> CaughtCharacter;
 
 public: // Animation Interface Section
 	FORCEINLINE virtual bool GetHasAcceleration() override { return GetCharacterMovement()->GetCurrentAcceleration() != FVector::ZeroVector; }
 	FORCEINLINE virtual bool GetIsFalling() override { return GetCharacterMovement()->IsFalling(); }
 	FORCEINLINE virtual float GetZVelocity() override { return GetCharacterMovement()->Velocity.Z; }
+
+protected: // Smash Section
+	void Smash();
+
+	UFUNCTION(Server, Unreliable)
+	void ServerRPCPlaySmashAnimation();
+
+	UFUNCTION(Client, Unreliable)
+	void ClientRPCPlaySmashAnimation(const ASMPlayerCharacter* InPlayAnimationCharacter) const;
+
+	virtual void HandleSmash() override;
+
+	UFUNCTION(Server, Reliable)
+	void ServerRPCDetachToCaster();
+
+	UFUNCTION(NetMulticast, Reliable)
+	void MulticastRPCDetachToCaster(ASMPlayerCharacter* InCaster, ASMPlayerCharacter* InTarget);
+
+	UFUNCTION(Client, Unreliable)
+	void ClientRPCPlayDownStartAnimation(const ASMPlayerCharacter* InAnimationPlayCharacter) const;
+
+	UFUNCTION(NetMulticast, UnReliable)
+	void MulticastRPCHandleStandUp();
+
+	virtual void OnStandUpAnimationEnded() override;
+
+	UFUNCTION(Server, Reliable)
+	void ServerRPCOnStandUpEnd();
+
+	UFUNCTION(Client, Reliable)
+	void ClientRPCSetActorRotation(FRotator InRotation);
+
+protected:
+	UPROPERTY(Replicated)
+	TObjectPtr<ASMPlayerCharacter> TempStandUpCastCharacter;
 };

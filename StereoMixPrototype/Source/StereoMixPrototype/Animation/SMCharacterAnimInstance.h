@@ -38,6 +38,12 @@ public: // Montage Section
 	void PlayCatch();
 	void PlayCaught();
 
+	void PlaySmash();
+	
+	void PlayDownStart();
+	void PlayDownEnd();
+	void PlayDownEndEnded(UAnimMontage* AnimMontage, bool bInterrupted);
+
 protected: // State Section
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "CharacterState")
 	uint32 bHasAcceleration:1;

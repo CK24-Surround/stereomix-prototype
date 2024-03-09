@@ -28,4 +28,7 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	TObjectPtr<const UInputAction> HoldAction;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Input")
+	TObjectPtr<const UInputAction> SmashAction;
 };
