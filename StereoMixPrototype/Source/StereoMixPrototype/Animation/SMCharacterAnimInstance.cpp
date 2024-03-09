@@ -6,6 +6,7 @@
 #include "SMCharacterAnimationAssetData.h"
 #include "Data/AssetPath.h"
 #include "Interface/SMCharacterAnimationInterface.h"
+#include "Log/SMLog.h"
 
 USMCharacterAnimInstance::USMCharacterAnimInstance()
 {
@@ -26,7 +27,7 @@ void USMCharacterAnimInstance::NativeInitializeAnimation()
 	Super::NativeInitializeAnimation();
 
 	AssetCheck();
-	
+
 	StoredAnimationInterface = Cast<ISMCharacterAnimationInterface>(GetOwningActor());
 }
 
@@ -49,10 +50,12 @@ void USMCharacterAnimInstance::AssetCheck()
 
 void USMCharacterAnimInstance::PlayCatch()
 {
+	NET_ANIM_LOG(LogSMAnim, Log, TEXT("잡기 애니메이션 재생"));
 	Montage_Play(AssetData->CatchMontage);
 }
 
 void USMCharacterAnimInstance::PlayCaught()
 {
+	NET_ANIM_LOG(LogSMAnim, Log, TEXT("잡힌 애니메이션 재생"));
 	Montage_Play(AssetData->CaughtMontage);
 }

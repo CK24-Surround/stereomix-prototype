@@ -44,6 +44,7 @@ ASMPlayerCharacter::ASMPlayerCharacter()
 
 	CurrentState = EPlayerCharacterState::Normal;
 	bEnableCollision = true;
+	bEnableMovement = true;
 	bCanControl = true;
 }
 
@@ -118,6 +119,7 @@ void ASMPlayerCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& O
 	DOREPLIFETIME(ASMPlayerCharacter, CurrentState);
 	DOREPLIFETIME(ASMPlayerCharacter, bEnableCollision);
 	DOREPLIFETIME(ASMPlayerCharacter, bCanControl);
+	DOREPLIFETIME(ASMPlayerCharacter, bEnableMovement);
 }
 
 void ASMPlayerCharacter::OnRep_Controller()
@@ -147,26 +149,6 @@ void ASMPlayerCharacter::InitCamera()
 	CameraBoom->bEnableCameraLag = true;
 
 	Camera->SetFieldOfView(CameraFOV);
-}
-
-void ASMPlayerCharacter::Move(const FInputActionValue& InputActionValue)
-{
-	const FVector2D InputScalar = InputActionValue.Get<FVector2D>().GetSafeNormal();
-	const FRotator CameraYawRotation(0.0, Camera->GetComponentRotation().Yaw, 0.0);
-	const FVector ForwardDirection = FRotationMatrix(CameraYawRotation).GetUnitAxis(EAxis::X);
-	const FVector RightDirection = FRotationMatrix(CameraYawRotation).GetUnitAxis(EAxis::Y);
-	const FVector MoveVector = (ForwardDirection * InputScalar.X) + (RightDirection * InputScalar.Y);
-
-	const UCharacterMovementComponent* CachedCharacterMovement = GetCharacterMovement();
-	if (CachedCharacterMovement->IsFalling())
-	{
-		const FVector NewMoveVector = MoveVector / 2.0f;
-		AddMovementInput(NewMoveVector);
-	}
-	else
-	{
-		AddMovementInput(MoveVector);
-	}
 }
 
 void ASMPlayerCharacter::InitCharacterControl()
@@ -223,22 +205,89 @@ void ASMPlayerCharacter::UpdateRotateToMousePointer()
 	}
 }
 
-void ASMPlayerCharacter::OnRep_bCanControl()
+void ASMPlayerCharacter::SetEnableMovement(bool bInEnableMovement)
 {
-	NET_LOG(LogSMNetwork, Log, TEXT("컨트롤 상태 변경 감지"))
-	if (bCanControl)
+	if (HasAuthority())
 	{
-		NET_LOG(LogSMNetwork, Log, TEXT("움직임 재개"));
-		EnableInput(StoredSMPlayerController);
-		bUseControllerRotationYaw = true;
+		bEnableMovement = bInEnableMovement;
+		OnRep_bEnableMovement();
+	}
+}
+
+void ASMPlayerCharacter::Move(const FInputActionValue& InputActionValue)
+{
+	const FVector2D InputScalar = InputActionValue.Get<FVector2D>().GetSafeNormal();
+	const FRotator CameraYawRotation(0.0, Camera->GetComponentRotation().Yaw, 0.0);
+	const FVector ForwardDirection = FRotationMatrix(CameraYawRotation).GetUnitAxis(EAxis::X);
+	const FVector RightDirection = FRotationMatrix(CameraYawRotation).GetUnitAxis(EAxis::Y);
+	const FVector MoveVector = (ForwardDirection * InputScalar.X) + (RightDirection * InputScalar.Y);
+
+	const UCharacterMovementComponent* CachedCharacterMovement = GetCharacterMovement();
+	if (CachedCharacterMovement->IsFalling())
+	{
+		const FVector NewMoveVector = MoveVector / 2.0f;
+		AddMovementInput(NewMoveVector);
+	}
+	else
+	{
+		AddMovementInput(MoveVector);
+	}
+}
+
+void ASMPlayerCharacter::OnRep_bEnableMovement()
+{
+	if (bEnableMovement)
+	{
+		NET_LOG(LogSMNetwork, Log, TEXT("움직임 활성화"));
 		GetCharacterMovement()->SetMovementMode(MOVE_Walking);
 	}
 	else
 	{
-		NET_LOG(LogSMNetwork, Log, TEXT("움직임 정지"));
+		NET_LOG(LogSMNetwork, Log, TEXT("움직임 비활성화"));
+		GetCharacterMovement()->SetMovementMode(MOVE_None);
+	}
+}
+
+void ASMPlayerCharacter::SetCurrentState(EPlayerCharacterState InState)
+{
+	if (HasAuthority())
+	{
+		CurrentState = InState;
+		OnRep_CurrentState();
+	}
+}
+
+void ASMPlayerCharacter::SetEnableCollision(bool bInEnableCollision)
+{
+	if (HasAuthority())
+	{
+		bEnableCollision = bInEnableCollision;
+		OnRep_bEnableCollision();
+	}
+}
+
+void ASMPlayerCharacter::SetCanControl(bool bInEnableControl)
+{
+	if (HasAuthority())
+	{
+		bCanControl = bInEnableControl;
+		OnRep_bCanControl();
+	}
+}
+
+void ASMPlayerCharacter::OnRep_bCanControl()
+{
+	if (bCanControl)
+	{
+		NET_LOG(LogSMNetwork, Log, TEXT("컨트롤 활성화"))
+		EnableInput(StoredSMPlayerController);
+		bUseControllerRotationYaw = true;
+	}
+	else
+	{
+		NET_LOG(LogSMNetwork, Log, TEXT("컨트롤 비활성화"))
 		DisableInput(StoredSMPlayerController);
 		bUseControllerRotationYaw = false;
-		GetCharacterMovement()->SetMovementMode(MOVE_None);
 	}
 }
 
@@ -345,15 +394,10 @@ void ASMPlayerCharacter::ServerRPCPerformPull_Implementation(ASMPlayerCharacter*
 	NET_LOG(LogSMNetwork, Log, TEXT("당기기 시작"));
 
 	// 클라이언트 제어권 박탈 및 충돌 판정 비활성화
-	InTargetCharacter->CurrentState = EPlayerCharacterState::Caught;
-	
-	InTargetCharacter->SetCanControl(false);
-	InTargetCharacter->OnRep_bCanControl();
-
 	InTargetCharacter->SetAutonomousProxy(false);
-
+	InTargetCharacter->SetCanControl(false);
+	InTargetCharacter->SetEnableMovement(false);
 	InTargetCharacter->SetEnableCollision(false);
-	InTargetCharacter->OnRep_bEnableCollision();
 
 	// 당기기에 필요한 데이터 할당
 	InTargetCharacter->PullData.bIsPulling = true;
@@ -396,8 +440,9 @@ void ASMPlayerCharacter::HandlePullEnd()
 	if (HasAuthority())
 	{
 		NET_LOG(LogSMNetwork, Log, TEXT("당기기 종료"))
-
 		PullData.bIsPulling = false;
+
+		NET_LOG(LogSMNetwork, Log, TEXT("어태치 시작"))
 		MulticastRPCAttachToCaster(PullData.Caster, this);
 		StoredSMPlayerController->SetViewTargetWithBlend(PullData.Caster, 0.1f);
 	}
@@ -405,15 +450,18 @@ void ASMPlayerCharacter::HandlePullEnd()
 
 void ASMPlayerCharacter::MulticastRPCAttachToCaster_Implementation(AActor* InCaster, AActor* InTarget)
 {
-	NET_LOG(LogSMNetwork, Log, TEXT("어태치 시작"))
-
 	const FAttachmentTransformRules AttachmentTransformRules(EAttachmentRule::SnapToTarget, false);
 	const ASMPlayerCharacter* SMPlayerCharacter = Cast<ASMPlayerCharacter>(InCaster);
 	ASMPlayerCharacter* SMTargetCharacter = Cast<ASMPlayerCharacter>(InTarget);
 	if (SMPlayerCharacter)
 	{
+		// 플레이어의 상태를 잡힘으로 변경합니다.
+		SMTargetCharacter->SetCurrentState(EPlayerCharacterState::Caught);
 		SMTargetCharacter->AttachToComponent(SMPlayerCharacter->GetMesh(), AttachmentTransformRules, TEXT("CatchSocket"));
-		MulticastRPCPlayCaughtAnimation(SMTargetCharacter);
+		if (!HasAuthority())
+		{
+			SMTargetCharacter->StoredSMAnimInstance->PlayCaught();
+		}
 	}
 }
 
@@ -435,9 +483,4 @@ void ASMPlayerCharacter::ServerRPCPlayCatchAnimation_Implementation() const
 void ASMPlayerCharacter::ClientRPCPlayCatchAnimation_Implementation(const ASMPlayerCharacter* InPlayAnimationCharacter) const
 {
 	InPlayAnimationCharacter->StoredSMAnimInstance->PlayCatch();
-}
-
-void ASMPlayerCharacter::MulticastRPCPlayCaughtAnimation_Implementation(const ASMPlayerCharacter* InPlayAnimationCharacter) const
-{
-	InPlayAnimationCharacter->StoredSMAnimInstance->PlayCaught();
 }

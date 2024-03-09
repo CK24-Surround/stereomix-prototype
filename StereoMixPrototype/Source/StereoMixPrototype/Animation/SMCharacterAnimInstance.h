@@ -8,6 +8,8 @@
 
 class ISMCharacterAnimationInterface;
 class USMCharacterAnimationAssetData;
+
+DECLARE_LOG_CATEGORY_CLASS(LogSMAnim, Log, All);
 /**
  * 
  */

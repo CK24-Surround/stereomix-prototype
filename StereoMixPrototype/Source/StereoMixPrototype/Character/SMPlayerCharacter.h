@@ -62,10 +62,7 @@ protected: // Camera Section
 	UPROPERTY(VisibleAnywhere, Category = "Camera")
 	TObjectPtr<UCameraComponent> Camera;
 
-protected: // Move Section
-	/** 이동 키 입력를 실제 캐릭터 이동으로 변환해주는 함수입니다. */
-	void Move(const FInputActionValue& InputActionValue);
-
+protected: // Input Section
 	/** 컨트롤러의 초기 세팅에 사용되는 함수입니다. */
 	void InitCharacterControl();
 
@@ -75,8 +72,22 @@ protected: // Move Section
 	/** GetMousePointingDirection()를 통해 얻어낸 방향으로 캐릭터를 회전시킵니다. */
 	void UpdateRotateToMousePointer();
 
+public: // Movement Section
+	void SetEnableMovement(bool bInEnableMovement);
+
+protected:
+	/** 이동 키 입력를 실제 캐릭터 이동으로 변환해주는 함수입니다. */
+	void Move(const FInputActionValue& InputActionValue);
+
+	UFUNCTION()
+	void OnRep_bEnableMovement();
+
+	UPROPERTY(ReplicatedUsing = OnRep_bEnableMovement)
+	uint32 bEnableMovement:1;
+
 public: // State Section
-	void SetEnableCollision(bool bInEnableCollision) { bEnableCollision = bInEnableCollision; }
+	void SetCurrentState(EPlayerCharacterState InState);
+	void SetEnableCollision(bool bInEnableCollision);
 
 protected:
 	UFUNCTION()
@@ -84,7 +95,7 @@ protected:
 
 	UFUNCTION()
 	void OnRep_bEnableCollision();
-	
+
 	UPROPERTY(ReplicatedUsing = OnRep_CurrentState)
 	EPlayerCharacterState CurrentState;
 
@@ -92,7 +103,7 @@ protected:
 	uint32 bEnableCollision:1;
 
 public: // Control Section
-	void SetCanControl(bool bInEnableControl) { bCanControl = bInEnableControl; }
+	void SetCanControl(bool bInEnableControl);
 
 protected:
 	UFUNCTION()
@@ -109,17 +120,20 @@ protected: // Aim Section
 	TObjectPtr<AAimPlane> AimPlane;
 
 protected: // Jump Section
+	/** 점프 시 호출되는 이벤트입니다 */
 	virtual void OnJumped_Implementation() override;
 
+	/** 착지 시 호출되는 이벤트입니다 */
 	virtual void Landed(const FHitResult& Hit) override;
 
 protected: // Stat Section
 	const float MoveSpeed = 700.0f;
 
 protected: // Util Section
+	/** 현재 캐릭터의 위치에서 가장 가까운 바닥까지의 거리를 반환합니다 */
 	float DistanceHeightFromFloor();
 
-protected: // Hold Section
+protected: // Catch Section
 	struct FPullData
 	{
 		AActor* Caster;
@@ -153,12 +167,9 @@ protected: // Animation Section
 	UFUNCTION(Client, Unreliable)
 	void ClientRPCPlayCatchAnimation(const ASMPlayerCharacter* InPlayAnimationCharacter) const;
 
-	UFUNCTION(NetMulticast, Unreliable)
-	void MulticastRPCPlayCaughtAnimation(const ASMPlayerCharacter* InPlayAnimationCharacter) const;
-	
 	UPROPERTY()
 	TObjectPtr<USMCharacterAnimInstance> StoredSMAnimInstance;
-	
+
 public: // Animation Interface Section
 	FORCEINLINE virtual bool GetHasAcceleration() override { return GetCharacterMovement()->GetCurrentAcceleration() != FVector::ZeroVector; }
 	FORCEINLINE virtual bool GetIsFalling() override { return GetCharacterMovement()->IsFalling(); }
