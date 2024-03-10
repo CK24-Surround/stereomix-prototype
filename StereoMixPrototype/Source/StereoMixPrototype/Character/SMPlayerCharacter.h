@@ -223,25 +223,28 @@ protected:
 
 	/** 스매시 애니메이션이 종료되고난 뒤에 호출됩니다. */
 	void SmashEnded(UAnimMontage* PlayAnimMontage, bool bInterrupted);
-
-	/** 스매시 애니메이션 종료 후 서버측에서 필요한 처리를 합니다. */
-	UFUNCTION(Server, Reliable)
-	void ServerRPCSmashEnded();
 	
 	UFUNCTION(Server, Reliable)
 	void ServerRPCDetachToCaster(FVector InLocation, FRotator InRotation);
+
+	UFUNCTION(Client, Reliable)
+	void ClientRPCSetRotationAndEnableControlYaw(FRotator InRotation);
 
 	/** 타이머 실행 이후(기상 시간) 기상 애니메이션을 재생시킵니다. */
 	UFUNCTION(NetMulticast, Unreliable)
 	void MulticastRPCPlayStandUpAnimation();
 
+	/** 기상 애니메이션이 종료되고난 뒤에 호출됩니다. */
 	void StandUpEnded(UAnimMontage* PlayAnimMontage, bool bInterrupted);
-
-	UFUNCTION(Server, Reliable)
-	void ServerRPCStandUpEnded();
 
 	/** 디태치를 모두에게 적용하고 카메라 뷰 타겟을 되돌립니다.*/
 	UFUNCTION(NetMulticast, Reliable)
 	void MulticastRPCDetachToCaster(ASMPlayerCharacter* InCaster, ASMPlayerCharacter* InTarget);
 // ~End of Smash Section
+
+// ~Test
+public:
+	FVector TestLocation;
+	FRotator TestRotation;
+// ~Test
 };

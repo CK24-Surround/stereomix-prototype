@@ -59,8 +59,12 @@ void ASMPlayerCharacter::PostInitializeComponents()
 	Super::PostInitializeComponents();
 
 	StoredSMAnimInstance = CastChecked<USMCharacterAnimInstance>(GetMesh()->GetAnimInstance());
-	StoredSMAnimInstance->OnSmashEnded.BindUObject(this, &ASMPlayerCharacter::SmashEnded);
-	StoredSMAnimInstance->OnStandUpEnded.BindUObject(this, &ASMPlayerCharacter::StandUpEnded);
+
+	if (HasAuthority())
+	{
+		StoredSMAnimInstance->OnSmashEnded.BindUObject(this, &ASMPlayerCharacter::SmashEnded);
+		StoredSMAnimInstance->OnStandUpEnded.BindUObject(this, &ASMPlayerCharacter::StandUpEnded);
+	}
 }
 
 void ASMPlayerCharacter::PossessedBy(AController* NewController)
@@ -290,13 +294,11 @@ void ASMPlayerCharacter::OnRep_bCanControl()
 	{
 		NET_LOG(LogSMCharacter, Log, TEXT("컨트롤 활성화"))
 		EnableInput(StoredSMPlayerController);
-		bUseControllerRotationYaw = true;
 	}
 	else
 	{
 		NET_LOG(LogSMCharacter, Log, TEXT("컨트롤 비활성화"))
 		DisableInput(StoredSMPlayerController);
-		bUseControllerRotationYaw = false;
 	}
 }
 
@@ -346,7 +348,7 @@ float ASMPlayerCharacter::DistanceHeightFromFloor()
 	if (bSuccess)
 	{
 		const float Distance = (HitResult.Location - Start).Size();
-		NET_LOG(LogSMCharacter, Warning, TEXT("Height: %f"), Distance);
+		NET_LOG(LogSMCharacter, Log, TEXT("Height: %f"), Distance);
 
 		return Distance;
 	}
@@ -454,6 +456,11 @@ void ASMPlayerCharacter::ServerRPCPerformPull_Implementation(ASMPlayerCharacter*
 
 	// 클라이언트 제어권 박탈 및 충돌 판정 비활성화
 	InTargetCharacter->SetAutonomousProxy(false);
+
+	// TODO: 테스트용
+	InTargetCharacter->TestLocation = InTargetCharacter->GetActorLocation();
+	InTargetCharacter->TestRotation = InTargetCharacter->GetActorRotation();
+	
 	InTargetCharacter->SetCanControl(false);
 	InTargetCharacter->SetEnableMovement(false);
 	InTargetCharacter->SetEnableCollision(false);
@@ -522,6 +529,7 @@ void ASMPlayerCharacter::MulticastRPCAttachToCaster_Implementation(ASMPlayerChar
 		InTarget->AttachToComponent(InCaster->GetMesh(), AttachmentTransformRules, TEXT("CatchSocket"));
 		if (!HasAuthority())
 		{
+			InTarget->bUseControllerRotationYaw = false;
 			InTarget->StoredSMAnimInstance->PlayCaught();
 		}
 	}
@@ -549,7 +557,7 @@ void ASMPlayerCharacter::ClientRPCPlayCatchAnimation_Implementation(const ASMPla
 
 void ASMPlayerCharacter::Smash()
 {
-	NET_LOG(LogSMCharacter, Warning, TEXT("매치기 트리거"));
+	NET_LOG(LogSMCharacter, Log, TEXT("매치기 트리거"));
 
 	if (CaughtCharacter)
 	{
@@ -563,6 +571,7 @@ void ASMPlayerCharacter::ServerRPCPlaySmashAnimation_Implementation()
 	NET_LOG(LogSMCharacter, Log, TEXT("매치기 시작"));
 
 	SetCanControl(false);
+	StoredSMAnimInstance->PlaySmash();
 
 	for (const ASMPlayerCharacter* CharacterToAnimation : GetCharactersExcludingServerAndCaster())
 	{
@@ -606,9 +615,10 @@ void ASMPlayerCharacter::HandleSmash()
 
 void ASMPlayerCharacter::SmashEnded(UAnimMontage* PlayAnimMontage, bool bInterrupted)
 {
-	if (IsLocallyControlled())
+	if (HasAuthority())
 	{
-		ServerRPCSmashEnded();
+		NET_LOG(LogSMCharacter, Log, TEXT("매치기 애니메이션 종료"))
+		SetCanControl(true);
 	}
 }
 
@@ -619,46 +629,6 @@ void ASMPlayerCharacter::ServerRPCDetachToCaster_Implementation(FVector InLocati
 		return;
 	}
 
-	// TODO: 캐스터의 입력 활성화: 매치기 애니메이션 종료 후
-	// 이는 매치기 종료 애니메이션에 델리게이트를 바인드 한 후 이 시점에 입력을 활성화하도록 구성하면 된다.
-	// 일단락: 매치기 애니메이션 종료 후 캐스터의 입력 활성화되도록 로직 구성
-
-	// TODO: 매치기 당한 캐릭터가 매치기 종료 후 스스로 제어권을 확보할 수 있도록 로직 구성
-	// 서버에서 해당 캐릭터의 기상 애니메이션을 재생하고 이 애니메이션이 끝나면 제어권을 확보한다.
-	// 1. 서버에서 해당 캐릭터의 기상 애니메이션을 멀티캐스트로 재생한다.
-	// 2. 이 캐릭터를 조종하고 있는 클라이언트 측에서는 이 애니메이션 재생이 종료될때 제어권을 확보해야하는데 이를 위해 기상기가 종료되는 시점의 델리게이트에 제어권을 되찾는 함수를 바인딩해둔다. 물론 다른 캐릭터들도 기상을 할때가 있기 때문에 일괄적으로 모두 바인드 후 제어권을 찾는 함수를 바인드해둔다. 그리고 이 함수는 로컬에서만 실행되도록하고 서버 RPC를 사용해 본인의 제어권을 되찾도록 설계한다. 이때 동기화되 될 것이다.
-	// 3. 바인드는 캐릭터의 포스트 이니셜라이즈드 컴포넌트에서 진행한다.
-	// 4. 애님 인스턴스에서는 기상 애니메이션의 종료 시점에 연결된 델리게이트를 public 변수로 갖고 있어야한다. 이 델리게이트에 캐릭터의 함수를 연결시킬것이다.
-	// 문제: 타이머에는 인자 사용이 불가능해 타이머 이후 서버에서 해당 캐릭터를 기상시킬 수 없다. 만약 멤버 변수로 할당해 사용하려 한다면 매치고 5초 안에 다른 대상을 매치려고 하는경우 포인터가 달라지게되 문제가 생긴다.
-	// 위와 같은 문제는 넘어져있는 애니메이션과 기상하는 애니메이션이 분리되어 있어 따로 트리거 해줘야하기 때문에 생기는 문제다.
-	// 이렇게 설계한 이유는 넘어져 있는 시간은 변동될 수 있기 때문이다.
-	// 그럼 어떻게 해당 캐릭터에게 인자를 사용하지 않고 기상 애니메이션을 재생시킬까?
-	// 1. 넘어져 있는 애니메이션을 매쳐지고 난 뒤 5초만 재생시키고 바로 기상으로 이어지도록 애니메이션을 이은다.
-	// 2. 애시당초 매쳐지는 순간 타이머에 this가 아닌 매쳐지는 캐릭터의 포인터를 넘겨 스스로 실행되도록한다.
-	// 해결
-	// 타이머에 포인터를 매쳐지는 캐릭터로 넘겨 서버측에서 매쳐지는 캐릭터를 기준으로 로직이 전개된다.
-	// 애니메이션 종료후 델리게이트를 호출하는데 이 델리게이트는 로컬에서만 처리되도록 설계해 해당 캐릭터의 제어권을 되찾으면 된다.
-	// 일단락: 스스로 일어나며 제어권을 회복하도록 로직 구성 완료
-
-	// TODO: 매치기 당한 캐릭터의 위치 동기화
-	// 오토너머스 프록시로 재설정해준 뒤에 NetMulticastRPC를 통한 SetActorLocation으로 위치를 재설정해준다. 약간의 튐이 발생할 수는 있다.
-	// 회전의 경우 SetControlRotation을 통해 설정해주어 알아서 보간되도록 한다.
-	// 기상 애니메이션 시작시 미리 위치를 동기화해두는 것을 목표로 작성한다.
-	// 이 때 활성화해야할 목록 콜리전, 오토너머스, 무브먼트. 추가로 카메라도 복구해야한다.
-	// 카메라는 디태치 되는 타이밍에 하도록 처리한다.
-	// 기상 애니메이션 종료시에는 입력을 활성화 시켜준다.
-	// 일단 락
-
-	// TODO: 애니메이션 동기화 오류, 스매시 애니메이션 중단 오류
-	// 로직 이상으로 캐스터 클라이언트에서 1번 더 실행했고, 이로 인해 애니메이션이 중단되었던 것.
-	// 일단 락
-
-	// TODO: 논캐스터 클라이언트에 넘어진 애니메이션 재생 오류
-	// 호출 자체를 했음
-	// 일단 락
-
-	// TODO: 
-
 	FTimerHandle TimerHandle;
 	GetWorldTimerManager().SetTimer(TimerHandle, CaughtCharacter.Get(), &ASMPlayerCharacter::MulticastRPCPlayStandUpAnimation, StandUpTime);
 
@@ -666,40 +636,36 @@ void ASMPlayerCharacter::ServerRPCDetachToCaster_Implementation(FVector InLocati
 	MulticastRPCDetachToCaster(this, CaughtCharacter);
 	SetCaughtCharacter(nullptr);
 
+	CachedCaughtCharacter->TeleportTo(InLocation, InRotation);
 	CachedCaughtCharacter->SetAutonomousProxy(true);
+	DrawDebugSphere(GetWorld(), TestLocation, 50.0f, 16, FColor::Green, false, 3.0f);
+
+	// 로컬에서 회전을 변경해주는 이유는 컨트롤러 관련은 언리얼에서 클라이언트 우선이기 때문입니다. 여기서 바꾸는 값은 컨트롤러의 회전값입니다.
+	CachedCaughtCharacter->ClientRPCSetRotationAndEnableControlYaw(InRotation);
+
 	CachedCaughtCharacter->SetEnableCollision(true);
 	CachedCaughtCharacter->SetEnableMovement(true);
 }
 
-void ASMPlayerCharacter::ServerRPCSmashEnded_Implementation()
+void ASMPlayerCharacter::ClientRPCSetRotationAndEnableControlYaw_Implementation(FRotator InRotation)
 {
-	if (HasAuthority())
-	{
-		SetCanControl(true);
-	}
+	bUseControllerRotationYaw = true;
+	StoredSMPlayerController->SetControlRotation(InRotation);
 }
 
 void ASMPlayerCharacter::MulticastRPCPlayStandUpAnimation_Implementation()
 {
-	if (!HasAuthority())
-	{
-		StoredSMAnimInstance->PlayStandUp();
-	}
+	StoredSMAnimInstance->PlayStandUp();
 }
 
 void ASMPlayerCharacter::StandUpEnded(UAnimMontage* PlayAnimMontage, bool bInterrupted)
 {
-	if (IsLocallyControlled())
+	if (HasAuthority())
 	{
 		NET_LOG(LogSMCharacter, Log, TEXT("기상 애니메이션 종료"));
-		ServerRPCStandUpEnded();
+		SetCurrentState(EPlayerCharacterState::Normal);
+		SetCanControl(true);
 	}
-}
-
-void ASMPlayerCharacter::ServerRPCStandUpEnded_Implementation()
-{
-	SetCurrentState(EPlayerCharacterState::Normal);
-	SetCanControl(true);
 }
 
 void ASMPlayerCharacter::MulticastRPCDetachToCaster_Implementation(ASMPlayerCharacter* InCaster, ASMPlayerCharacter* InTarget)
@@ -713,7 +679,7 @@ void ASMPlayerCharacter::MulticastRPCDetachToCaster_Implementation(ASMPlayerChar
 		if (HasAuthority())
 		{
 			// 뷰타겟 설정은 서버에서만 실행해주면 알아서 동기화됩니다.
-			InTarget->StoredSMPlayerController->SetViewTargetWithBlend(InTarget, 0.3f);
+			InTarget->StoredSMPlayerController->SetViewTargetWithBlend(InTarget, 1.0f);
 		}
 
 		if (!HasAuthority())
