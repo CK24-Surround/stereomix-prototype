@@ -59,6 +59,8 @@ void ASMPlayerCharacter::PostInitializeComponents()
 	Super::PostInitializeComponents();
 
 	StoredSMAnimInstance = CastChecked<USMCharacterAnimInstance>(GetMesh()->GetAnimInstance());
+	StoredSMAnimInstance->OnSmashEnded.BindUObject(this, &ASMPlayerCharacter::SmashEnded);
+	StoredSMAnimInstance->OnStandUpEnded.BindUObject(this, &ASMPlayerCharacter::StandUpEnded);
 }
 
 void ASMPlayerCharacter::PossessedBy(AController* NewController)
@@ -130,7 +132,6 @@ void ASMPlayerCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& O
 	DOREPLIFETIME(ASMPlayerCharacter, bCanControl);
 	DOREPLIFETIME(ASMPlayerCharacter, bEnableMovement);
 	DOREPLIFETIME(ASMPlayerCharacter, CaughtCharacter);
-	DOREPLIFETIME(ASMPlayerCharacter, TempStandUpCastCharacter);
 }
 
 void ASMPlayerCharacter::OnRep_Controller()
@@ -221,15 +222,6 @@ void ASMPlayerCharacter::UpdateRotateToMousePointer()
 	}
 }
 
-void ASMPlayerCharacter::SetEnableMovement(bool bInEnableMovement)
-{
-	if (HasAuthority())
-	{
-		bEnableMovement = bInEnableMovement;
-		OnRep_bEnableMovement();
-	}
-}
-
 void ASMPlayerCharacter::Move(const FInputActionValue& InputActionValue)
 {
 	const FVector2D InputScalar = InputActionValue.Get<FVector2D>().GetSafeNormal();
@@ -250,17 +242,12 @@ void ASMPlayerCharacter::Move(const FInputActionValue& InputActionValue)
 	}
 }
 
-void ASMPlayerCharacter::OnRep_bEnableMovement()
+void ASMPlayerCharacter::SetEnableMovement(bool bInEnableMovement)
 {
-	if (bEnableMovement)
+	if (HasAuthority())
 	{
-		NET_LOG(LogSMCharacter, Log, TEXT("움직임 활성화"));
-		GetCharacterMovement()->SetMovementMode(MOVE_Walking);
-	}
-	else
-	{
-		NET_LOG(LogSMCharacter, Log, TEXT("움직임 비활성화"));
-		GetCharacterMovement()->SetMovementMode(MOVE_None);
+		bEnableMovement = bInEnableMovement;
+		OnRep_bEnableMovement();
 	}
 }
 
@@ -325,6 +312,26 @@ void ASMPlayerCharacter::Landed(const FHitResult& Hit)
 	Super::Landed(Hit);
 
 	NET_LOG(LogSMCharacter, Log, TEXT("Landed! Floor Info: %s"), *Hit.GetComponent()->GetName());
+}
+
+TArray<ASMPlayerCharacter*> ASMPlayerCharacter::GetCharactersExcludingServerAndCaster()
+{
+	TArray<ASMPlayerCharacter*> Result;
+	for (const APlayerController* PlayerController : TActorRange<APlayerController>(GetWorld()))
+	{
+		if (!PlayerController || PlayerController->IsLocalController() || PlayerController == GetController())
+		{
+			continue;
+		}
+
+		ASMPlayerCharacter* SMPlayerCharacter = Cast<ASMPlayerCharacter>(PlayerController->GetPawn());
+		if (SMPlayerCharacter)
+		{
+			Result.Add(SMPlayerCharacter);
+		}
+	}
+
+	return Result;
 }
 
 float ASMPlayerCharacter::DistanceHeightFromFloor()
@@ -418,6 +425,20 @@ void ASMPlayerCharacter::OnRep_CurrentState()
 			NET_LOG(LogSMCharacter, Log, TEXT("현재 캐릭터 상태: Down"));
 			break;
 		}
+	}
+}
+
+void ASMPlayerCharacter::OnRep_bEnableMovement()
+{
+	if (bEnableMovement)
+	{
+		NET_LOG(LogSMCharacter, Log, TEXT("움직임 활성화"));
+		GetCharacterMovement()->SetMovementMode(MOVE_Walking);
+	}
+	else
+	{
+		NET_LOG(LogSMCharacter, Log, TEXT("움직임 비활성화"));
+		GetCharacterMovement()->SetMovementMode(MOVE_None);
 	}
 }
 
@@ -528,6 +549,8 @@ void ASMPlayerCharacter::ClientRPCPlayCatchAnimation_Implementation(const ASMPla
 
 void ASMPlayerCharacter::Smash()
 {
+	NET_LOG(LogSMCharacter, Warning, TEXT("매치기 트리거"));
+
 	if (CaughtCharacter)
 	{
 		StoredSMAnimInstance->PlaySmash();
@@ -537,22 +560,15 @@ void ASMPlayerCharacter::Smash()
 
 void ASMPlayerCharacter::ServerRPCPlaySmashAnimation_Implementation()
 {
+	NET_LOG(LogSMCharacter, Log, TEXT("매치기 시작"));
+
 	SetCanControl(false);
 
-	for (const APlayerController* PlayerController : TActorRange<APlayerController>(GetWorld()))
+	for (const ASMPlayerCharacter* CharacterToAnimation : GetCharactersExcludingServerAndCaster())
 	{
-		if (!PlayerController)
+		if (CharacterToAnimation)
 		{
-			continue;
-		}
-
-		if (!PlayerController->IsLocalController())
-		{
-			if (PlayerController != GetController())
-			{
-				const ASMPlayerCharacter* SMPlayerCharacter = Cast<ASMPlayerCharacter>(PlayerController->GetPawn());
-				SMPlayerCharacter->ClientRPCPlaySmashAnimation(this);
-			}
+			CharacterToAnimation->ClientRPCPlaySmashAnimation(this);
 		}
 	}
 }
@@ -567,133 +583,142 @@ void ASMPlayerCharacter::ClientRPCPlaySmashAnimation_Implementation(const ASMPla
 
 void ASMPlayerCharacter::HandleSmash()
 {
+	// 캐스터 클라이언트에서만 실행되야합니다.
 	if (IsLocallyControlled())
 	{
-		NET_LOG(LogSMCharacter, Log, TEXT("스매시"));
+		NET_LOG(LogSMCharacter, Log, TEXT("매치기 처리"));
 
-		if (CaughtCharacter)
+		if (ensureMsgf(CaughtCharacter, TEXT("잡힌 캐릭터가 존재하지 않습니다.")))
 		{
-			CaughtCharacter->StoredSMAnimInstance->PlayDownStart();
+			CaughtCharacter->StoredSMAnimInstance->PlayKnockDown();
 
-			// 서버에서 해당 액터의 위치를 받아오기전에 미리 이동시켜두고 나중에 받은 데이터로는 검증을 수행합니다.
-			// 여기선 딜레이를 줄이기 위해 작성했습니다. 아니면 아예 앞으로 이런 로직은 시전자 클라에서 계산을 담당하고 서버로는 좌표값만 전송하고 반영하는 것도 염두 중입니다.
+			// 클라이언트에서 먼저 매쳐진 위치로 대상을 이동시킵니다. 이후 서버에도 해당 데이터를 보내 동기화시킵니다.
+			// 매쳐지는 위치를 직접 정하는 이유는 애니메이션에만 의존해서 의도된 위치에 매쳐지도록 조정하기 어렵기 때문입니다.
 			const FVector DownLocation = GetActorLocation() + (GetActorForwardVector() * 150.0f);
 			FRotator DownRotation = FRotationMatrix::MakeFromX(GetActorForwardVector()).Rotator();
 			DownRotation.Pitch = 0.0;
 			DownRotation.Roll = 0.0;
-			CaughtCharacter->SetActorLocationAndRotation(DownLocation, DownRotation);
-
-			ServerRPCDetachToCaster();
+			// CaughtCharacter->SetActorLocationAndRotation(DownLocation, DownRotation);
+			ServerRPCDetachToCaster(DownLocation, DownRotation);
 		}
 	}
 }
 
-void ASMPlayerCharacter::ServerRPCDetachToCaster_Implementation()
+void ASMPlayerCharacter::SmashEnded(UAnimMontage* PlayAnimMontage, bool bInterrupted)
+{
+	if (IsLocallyControlled())
+	{
+		ServerRPCSmashEnded();
+	}
+}
+
+void ASMPlayerCharacter::ServerRPCDetachToCaster_Implementation(FVector InLocation, FRotator InRotation)
 {
 	if (!HasAuthority())
 	{
 		return;
 	}
 
-	SetCanControl(true);
-	// TempStandUpCastCharacter 버그:
-	// 대상이 기상하기 전에 다른 타겟을 매치면 포인터가 옮겨지는 버그 있음
-	TempStandUpCastCharacter = CaughtCharacter;
-	MulticastRPCDetachToCaster(this, CaughtCharacter);
-	
+	// TODO: 캐스터의 입력 활성화: 매치기 애니메이션 종료 후
+	// 이는 매치기 종료 애니메이션에 델리게이트를 바인드 한 후 이 시점에 입력을 활성화하도록 구성하면 된다.
+	// 일단락: 매치기 애니메이션 종료 후 캐스터의 입력 활성화되도록 로직 구성
+
+	// TODO: 매치기 당한 캐릭터가 매치기 종료 후 스스로 제어권을 확보할 수 있도록 로직 구성
+	// 서버에서 해당 캐릭터의 기상 애니메이션을 재생하고 이 애니메이션이 끝나면 제어권을 확보한다.
+	// 1. 서버에서 해당 캐릭터의 기상 애니메이션을 멀티캐스트로 재생한다.
+	// 2. 이 캐릭터를 조종하고 있는 클라이언트 측에서는 이 애니메이션 재생이 종료될때 제어권을 확보해야하는데 이를 위해 기상기가 종료되는 시점의 델리게이트에 제어권을 되찾는 함수를 바인딩해둔다. 물론 다른 캐릭터들도 기상을 할때가 있기 때문에 일괄적으로 모두 바인드 후 제어권을 찾는 함수를 바인드해둔다. 그리고 이 함수는 로컬에서만 실행되도록하고 서버 RPC를 사용해 본인의 제어권을 되찾도록 설계한다. 이때 동기화되 될 것이다.
+	// 3. 바인드는 캐릭터의 포스트 이니셜라이즈드 컴포넌트에서 진행한다.
+	// 4. 애님 인스턴스에서는 기상 애니메이션의 종료 시점에 연결된 델리게이트를 public 변수로 갖고 있어야한다. 이 델리게이트에 캐릭터의 함수를 연결시킬것이다.
+	// 문제: 타이머에는 인자 사용이 불가능해 타이머 이후 서버에서 해당 캐릭터를 기상시킬 수 없다. 만약 멤버 변수로 할당해 사용하려 한다면 매치고 5초 안에 다른 대상을 매치려고 하는경우 포인터가 달라지게되 문제가 생긴다.
+	// 위와 같은 문제는 넘어져있는 애니메이션과 기상하는 애니메이션이 분리되어 있어 따로 트리거 해줘야하기 때문에 생기는 문제다.
+	// 이렇게 설계한 이유는 넘어져 있는 시간은 변동될 수 있기 때문이다.
+	// 그럼 어떻게 해당 캐릭터에게 인자를 사용하지 않고 기상 애니메이션을 재생시킬까?
+	// 1. 넘어져 있는 애니메이션을 매쳐지고 난 뒤 5초만 재생시키고 바로 기상으로 이어지도록 애니메이션을 이은다.
+	// 2. 애시당초 매쳐지는 순간 타이머에 this가 아닌 매쳐지는 캐릭터의 포인터를 넘겨 스스로 실행되도록한다.
+	// 해결
+	// 타이머에 포인터를 매쳐지는 캐릭터로 넘겨 서버측에서 매쳐지는 캐릭터를 기준으로 로직이 전개된다.
+	// 애니메이션 종료후 델리게이트를 호출하는데 이 델리게이트는 로컬에서만 처리되도록 설계해 해당 캐릭터의 제어권을 되찾으면 된다.
+	// 일단락: 스스로 일어나며 제어권을 회복하도록 로직 구성 완료
+
+	// TODO: 매치기 당한 캐릭터의 위치 동기화
+	// 오토너머스 프록시로 재설정해준 뒤에 NetMulticastRPC를 통한 SetActorLocation으로 위치를 재설정해준다. 약간의 튐이 발생할 수는 있다.
+	// 회전의 경우 SetControlRotation을 통해 설정해주어 알아서 보간되도록 한다.
+	// 기상 애니메이션 시작시 미리 위치를 동기화해두는 것을 목표로 작성한다.
+	// 이 때 활성화해야할 목록 콜리전, 오토너머스, 무브먼트. 추가로 카메라도 복구해야한다.
+	// 카메라는 디태치 되는 타이밍에 하도록 처리한다.
+	// 기상 애니메이션 종료시에는 입력을 활성화 시켜준다.
+	// 일단 락
+
+	// TODO: 애니메이션 동기화 오류, 스매시 애니메이션 중단 오류
+	// 로직 이상으로 캐스터 클라이언트에서 1번 더 실행했고, 이로 인해 애니메이션이 중단되었던 것.
+	// 일단 락
+
+	// TODO: 논캐스터 클라이언트에 넘어진 애니메이션 재생 오류
+	// 호출 자체를 했음
+	// 일단 락
+
+	// TODO: 
+
 	FTimerHandle TimerHandle;
-	GetWorldTimerManager().SetTimer(TimerHandle, this, &ASMPlayerCharacter::MulticastRPCHandleStandUp, StandUpTime);
+	GetWorldTimerManager().SetTimer(TimerHandle, CaughtCharacter.Get(), &ASMPlayerCharacter::MulticastRPCPlayStandUpAnimation, StandUpTime);
 
-	for (const APlayerController* PlayerController : TActorRange<APlayerController>(GetWorld()))
+	ASMPlayerCharacter* CachedCaughtCharacter = CaughtCharacter;
+	MulticastRPCDetachToCaster(this, CaughtCharacter);
+	SetCaughtCharacter(nullptr);
+
+	CachedCaughtCharacter->SetAutonomousProxy(true);
+	CachedCaughtCharacter->SetEnableCollision(true);
+	CachedCaughtCharacter->SetEnableMovement(true);
+}
+
+void ASMPlayerCharacter::ServerRPCSmashEnded_Implementation()
+{
+	if (HasAuthority())
 	{
-		if (!PlayerController)
-		{
-			continue;
-		}
-
-		if (!PlayerController->IsLocalController())
-		{
-			if (PlayerController != GetController())
-			{
-				const ASMPlayerCharacter* PlayerCharacter = Cast<ASMPlayerCharacter>(PlayerController->GetPawn());
-				if (PlayerCharacter)
-				{
-					PlayerCharacter->ClientRPCPlayDownStartAnimation(TempStandUpCastCharacter);
-				}
-			}
-		}
+		SetCanControl(true);
 	}
+}
+
+void ASMPlayerCharacter::MulticastRPCPlayStandUpAnimation_Implementation()
+{
+	if (!HasAuthority())
+	{
+		StoredSMAnimInstance->PlayStandUp();
+	}
+}
+
+void ASMPlayerCharacter::StandUpEnded(UAnimMontage* PlayAnimMontage, bool bInterrupted)
+{
+	if (IsLocallyControlled())
+	{
+		NET_LOG(LogSMCharacter, Log, TEXT("기상 애니메이션 종료"));
+		ServerRPCStandUpEnded();
+	}
+}
+
+void ASMPlayerCharacter::ServerRPCStandUpEnded_Implementation()
+{
+	SetCurrentState(EPlayerCharacterState::Normal);
+	SetCanControl(true);
 }
 
 void ASMPlayerCharacter::MulticastRPCDetachToCaster_Implementation(ASMPlayerCharacter* InCaster, ASMPlayerCharacter* InTarget)
 {
 	if (InCaster && InTarget)
 	{
-		NET_LOG(LogSMCharacter, Log, TEXT("디태치 성공"));
+		NET_LOG(LogSMCharacter, Log, TEXT("디태치"));
 		const FDetachmentTransformRules DetachmentTransformRules(EDetachmentRule::KeepWorld, false);
 		InTarget->DetachFromActor(DetachmentTransformRules);
 
 		if (HasAuthority())
 		{
-			SetCaughtCharacter(nullptr);
-
-			InTarget->SetEnableCollision(true);
-			InTarget->SetCurrentState(EPlayerCharacterState::Normal);
+			// 뷰타겟 설정은 서버에서만 실행해주면 알아서 동기화됩니다.
 			InTarget->StoredSMPlayerController->SetViewTargetWithBlend(InTarget, 0.3f);
-
-			const FVector DownLocation = InCaster->GetActorLocation() + (InCaster->GetActorForwardVector() * 150.0f);
-			FRotator DownRotation = FRotationMatrix::MakeFromX(InCaster->GetActorForwardVector()).Rotator();
-			DownRotation.Pitch = 0.0;
-			DownRotation.Roll = 0.0;
-			InTarget->SetAutonomousProxy(true);
-			InTarget->SetActorLocationAndRotation(DownLocation, DownRotation);
-			// InTarget->ClientRPCSetActorRotation(DownRotation);
-			InTarget->GetController()->SetControlRotation(DownRotation);
-			NET_LOG(LogSMCharacter, Log, TEXT("%s"), *DownRotation.ToString());
 		}
-	}
-}
 
-void ASMPlayerCharacter::ClientRPCPlayDownStartAnimation_Implementation(const ASMPlayerCharacter* InAnimationPlayCharacter) const
-{
-	if (InAnimationPlayCharacter)
-	{
-		InAnimationPlayCharacter->StoredSMAnimInstance->PlayDownStart();
-	}
-}
-
-void ASMPlayerCharacter::MulticastRPCHandleStandUp_Implementation()
-{
-	if (!HasAuthority())
-	{
-		if (TempStandUpCastCharacter)
+		if (!HasAuthority())
 		{
-			TempStandUpCastCharacter->StoredSMAnimInstance->PlayDownEnd();
+			InTarget->StoredSMAnimInstance->PlayKnockDown();
 		}
 	}
-
-	if (HasAuthority())
-	{
-		// TempStandUpCastCharacter->SetAutonomousProxy(true);
-	}
-}
-
-void ASMPlayerCharacter::OnStandUpAnimationEnded()
-{
-	if (IsLocallyControlled())
-	{
-		ServerRPCOnStandUpEnd();
-	}
-}
-
-void ASMPlayerCharacter::ClientRPCSetActorRotation_Implementation(FRotator InRotation)
-{
-	SetActorRotation(InRotation);
-}
-
-void ASMPlayerCharacter::ServerRPCOnStandUpEnd_Implementation()
-{
-	NET_LOG(LogSMCharacter, Warning, TEXT("Begin"));
-	SetCanControl(true);
-	SetEnableMovement(true);
 }

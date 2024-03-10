@@ -64,25 +64,18 @@ void USMCharacterAnimInstance::PlaySmash()
 {
 	NET_ANIM_LOG(LogSMAnim, Log, TEXT("매치기 애니메이션 재생"));
 	Montage_Play(AssetData->SmashMontage);
+	Montage_SetEndDelegate(OnSmashEnded, AssetData->SmashMontage);
 }
 
-void USMCharacterAnimInstance::PlayDownStart()
+void USMCharacterAnimInstance::PlayKnockDown()
 {
 	NET_ANIM_LOG(LogSMAnim, Log, TEXT("매쳐지기 애니메이션 재생"));
 	Montage_Play(AssetData->DownStartMontage);
 }
 
-void USMCharacterAnimInstance::PlayDownEnd()
+void USMCharacterAnimInstance::PlayStandUp()
 {
 	NET_ANIM_LOG(LogSMAnim, Log, TEXT("기상 애니메이션 재생"));
 	Montage_Play(AssetData->DownEndMontage);
-
-	FOnMontageEnded MontageEnded;
-	MontageEnded.BindUObject(this, &USMCharacterAnimInstance::PlayDownEndEnded);
-	Montage_SetEndDelegate(MontageEnded, AssetData->DownEndMontage);
-}
-
-void USMCharacterAnimInstance::PlayDownEndEnded(UAnimMontage* AnimMontage, bool bInterrupted)
-{
-	StoredAnimationInterface->OnStandUpAnimationEnded();
+	Montage_SetEndDelegate(OnStandUpEnded, AssetData->DownEndMontage);
 }

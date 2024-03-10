@@ -31,3 +31,17 @@ const FString Macro_NetModeInfo = FString(Macro_CachedNetMode == NM_Standalone ?
 UE_LOG(LogCategory, Verbosity, TEXT("[%s] (L: %s / R: %s)\t [%s]: %s"), *Macro_NetModeInfo, *Macro_LocalRoleInfo, *Macro_RemoteRoleInfo, *CallFunctionInfo, *FString::Printf(Format, ##__VA_ARGS__));\
 }\
 }
+
+#define NET_COMP_LOG(LogCategory, Verbosity, Format, ...)\
+{\
+	const AActor* Macro_CachedOwningActor = GetOwner();\
+	if (Macro_CachedOwningActor)\
+	{\
+	const FString Macro_LocalRoleInfo = UEnum::GetValueAsString(TEXT("Engine.ENetRole"), Macro_CachedOwningActor->GetLocalRole());\
+	const FString Macro_RemoteRoleInfo = UEnum::GetValueAsString(TEXT("Engine.ENetRole"), Macro_CachedOwningActor->GetRemoteRole());\
+	const ENetMode Macro_CachedNetMode = Macro_CachedOwningActor->GetNetMode();\
+	\
+	const FString Macro_NetModeInfo = FString(Macro_CachedNetMode == NM_Standalone ? TEXT("Standalone") : Macro_CachedNetMode == NM_DedicatedServer ? TEXT("Server") : Macro_CachedNetMode == NM_ListenServer ? TEXT("ListenServer") : Macro_CachedNetMode == NM_Client ? FString::Printf(TEXT("Client%d"), static_cast<int32>(GPlayInEditorID)) : TEXT("Invalid"));\
+	UE_LOG(LogCategory, Verbosity, TEXT("[%s] (L: %s / R: %s)\t [%s]: %s"), *Macro_NetModeInfo, *Macro_LocalRoleInfo, *Macro_RemoteRoleInfo, *CallFunctionInfo, *FString::Printf(Format, ##__VA_ARGS__));\
+	}\
+}

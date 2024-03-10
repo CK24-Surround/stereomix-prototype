@@ -28,6 +28,4 @@ public:
 
 	virtual void HandleCatch() = 0;
 	virtual void HandleSmash() = 0;
-
-	virtual void OnStandUpAnimationEnded() = 0;
 };
