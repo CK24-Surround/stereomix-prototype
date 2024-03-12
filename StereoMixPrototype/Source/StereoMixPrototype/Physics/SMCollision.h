@@ -2,7 +2,9 @@
 
 #pragma once
 
+#define CP_PLAYER TEXT("Pawn")
 #define CP_AIM_PLANE TEXT("AimPlane")
+#define CP_KNOCK_DOWN TEXT("KnockDown")
 
 #define OC_AIM_PLANE ECC_GameTraceChannel2
 

@@ -11,6 +11,6 @@ void UAnimNotify_Smash::Notify(USkeletalMeshComponent* MeshComp, UAnimSequenceBa
 
 	if (StoredAnimationInterface)
 	{
-		StoredAnimationInterface->HandleSmash();
+		StoredAnimationInterface->AnimNotify_Smash();
 	}
 }

@@ -26,6 +26,6 @@ public:
 	virtual bool GetIsFalling() = 0;
 	virtual float GetZVelocity() = 0;
 
-	virtual void HandleCatch() = 0;
-	virtual void HandleSmash() = 0;
+	virtual void AnimNotify_Catch() = 0;
+	virtual void AnimNotify_Smash() = 0;
 };

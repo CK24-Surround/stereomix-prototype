@@ -38,20 +38,54 @@ public:
 
 public:
 	virtual void PostInitializeComponents() override;
-
-public:
 	virtual void PossessedBy(AController* NewController) override;
+	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
+
+// ~Property Replicate Section
+public:
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+
+protected:
+	virtual void OnRep_Controller() override;
+
+protected:
+	UFUNCTION()
+	void OnRep_bCanControl();
+	
+	UFUNCTION()
+	void OnRep_CurrentState();
+
+	UFUNCTION()
+	void OnRep_bEnableMovement();
+
+	UFUNCTION()
+	void OnRep_bEnableCollision();
+
+	UFUNCTION()
+	void OnRep_CollisionProfileName();
+	
+protected:
+	UPROPERTY(ReplicatedUsing = OnRep_bCanControl)
+	uint32 bCanControl:1;
+	
+	UPROPERTY(ReplicatedUsing = OnRep_CurrentState)
+	EPlayerCharacterState CurrentState;
+	
+	UPROPERTY(ReplicatedUsing = OnRep_bEnableMovement)
+	uint32 bEnableMovement:1;
+
+	UPROPERTY(ReplicatedUsing = OnRep_bEnableCollision)
+	uint32 bEnableCollision:1;
+
+	UPROPERTY(ReplicatedUsing = OnRep_CollisionProfileName)
+	FName CollisionProfileName;
+// ~End of Property Replicate Section
 
 protected:
 	virtual void BeginPlay() override;
 
 public:
-	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 	virtual void Tick(float DeltaSeconds) override;
-
-public:
-	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
-	virtual void OnRep_Controller() override;
 
 // ~Design Section
 protected:
@@ -86,67 +120,46 @@ protected:
 
 	/** GetMousePointingDirection()를 통해 얻어낸 방향으로 캐릭터를 회전시킵니다. */
 	void UpdateRotateToMousePointer();
-
-protected:
-	/** 이동 키 입력를 실제 캐릭터 이동으로 변환해주는 함수입니다. */
-	void Move(const FInputActionValue& InputActionValue);
 // ~End of Input Section
 
-// ~Util Section
-protected:
-	/** 서버와 시전자를 제외한 플레이어 캐릭터들을 반환합니다. */
-	TArray<ASMPlayerCharacter*> GetCharactersExcludingServerAndCaster();
+// ~Movement Section
+public:
+	void SetEnableMovement(bool bInEnableMovement);
 
-	/** 현재 캐릭터의 위치에서 가장 가까운 바닥까지의 거리를 반환합니다. */
-	float DistanceHeightFromFloor();
-// ~End of Util Section
+protected:
+	void Move(const FInputActionValue& InputActionValue);
+// ~End of Movement Section
 
 // ~Character State Section
 public:
 	void SetCurrentState(EPlayerCharacterState InState);
-	void SetEnableMovement(bool bInEnableMovement);
 	void SetEnableCollision(bool bInEnableCollision);
-
-protected:
-	UFUNCTION()
-	void OnRep_CurrentState();
-
-	UFUNCTION()
-	void OnRep_bEnableMovement();
-
-	UFUNCTION()
-	void OnRep_bEnableCollision();
-
-	UPROPERTY(ReplicatedUsing = OnRep_bEnableMovement)
-	uint32 bEnableMovement:1;
-
-	UPROPERTY(ReplicatedUsing = OnRep_CurrentState)
-	EPlayerCharacterState CurrentState;
-
-	UPROPERTY(ReplicatedUsing = OnRep_bEnableCollision)
-	uint32 bEnableCollision:1;
+	void SetCollisionProfileName(FName InCollisionProfileName);
 // ~End of Character Section
-
-// ~Control Section
-public:
-	void SetCanControl(bool bInEnableControl);
-
-protected:
-	UFUNCTION()
-	void OnRep_bCanControl();
-
-	UPROPERTY()
-	TObjectPtr<ASMPlayerController> StoredSMPlayerController;
-
-	UPROPERTY(ReplicatedUsing = OnRep_bCanControl)
-	uint32 bCanControl:1;
-// ~End of Control Section
 
 // ~Aim Section
 protected:
 	UPROPERTY()
 	TObjectPtr<AAimPlane> AimPlane;
 // ~End of Aim Section
+	
+// ~Control Section
+public:
+	void SetCanControl(bool bInEnableControl);
+
+protected:
+	UPROPERTY()
+	TObjectPtr<ASMPlayerController> StoredSMPlayerController;
+// ~End of Control Section
+	
+// ~Util Section
+public:
+	/** 서버와 시전자를 제외한 플레이어 캐릭터들을 반환합니다. */
+	TArray<ASMPlayerCharacter*> GetCharactersExcludingServerAndCaster();
+
+	/** 현재 캐릭터의 위치에서 가장 가까운 바닥까지의 거리를 반환합니다. */
+	float DistanceHeightFromFloor();
+// ~End of Util Section
 
 // ~Jump Section
 protected:
@@ -162,38 +175,50 @@ protected:
 	const float MoveSpeed = 700.0f;
 // ~End of Stat Section
 
-public: // Catch Section
-	void SetCaughtCharacter(ASMPlayerCharacter* InCaughtCharacter);
-
+// ~Catch Section
 protected:
 	struct FPullData
 	{
+		uint32 bIsPulling:1 = false;
 		ASMPlayerCharacter* Caster;
 		FVector StartLocation;
 		FVector EndLocation;
-		uint32 bIsPulling = false;
 		float ElapsedTime = 0.0f;
 		float TotalTime = 0.25f;
+		float LastServerTime = 0.0f;
 	};
+	
+public: 
+	void SetCaughtCharacter(ASMPlayerCharacter* InCaughtCharacter);
 
+protected:
 	void Catch();
-	virtual void HandleCatch() override;
+
+	UFUNCTION(Server, Unreliable)
+	void ServerRPCPlayCatchAnimation();
+
+	UFUNCTION(Client, Unreliable)
+	void ClientRPCPlayCatchAnimation(const ASMPlayerCharacter* InPlayAnimationCharacter) const;
+	
+	virtual void AnimNotify_Catch() override;
 
 	UFUNCTION(Server, Reliable)
 	void ServerRPCPerformPull(ASMPlayerCharacter* InTargetCharacter);
 
-	void UpdatePerformPull(float DeltaSeconds);
+	UFUNCTION(Client, Reliable)
+	void ClientRPCLastTimeCheck();
+
+	void UpdatePerformPull();
+
+	UFUNCTION(Client, Unreliable)
+	void ClientRPCInterpolationPull(FVector_NetQuantize10 InInterpolationLocation);
+
+	void UpdateInterpolationPull();
 
 	void HandlePullEnd();
 
-	UFUNCTION(NetMulticast, Reliable)
-	void MulticastRPCAttachToCaster(ASMPlayerCharacter* InCaster, ASMPlayerCharacter* InTarget);
-
-	UFUNCTION(Server, Unreliable)
-	void ServerRPCPlayCatchAnimation() const;
-
-	UFUNCTION(Client, Unreliable)
-	void ClientRPCPlayCatchAnimation(const ASMPlayerCharacter* InPlayAnimationCharacter) const;
+	UFUNCTION(Client, Reliable)
+	void ClientRPCPlayCaughtAnimation(ASMPlayerCharacter* InPlayAnimationCharacter) const;
 
 	FPullData PullData;
 
@@ -216,19 +241,25 @@ protected:
 	void ServerRPCPlaySmashAnimation();
 
 	UFUNCTION(Client, Unreliable)
-	void ClientRPCPlaySmashAnimation(const ASMPlayerCharacter* InPlayAnimationCharacter) const;
+	void ClientRPCPlaySmashAnimation(const ASMPlayerCharacter* InCharacterToAnimation) const;
 
 	/** 애님 노티파이에 의해 호출됩니다. */
-	virtual void HandleSmash() override;
+	virtual void AnimNotify_Smash() override;
+
+	UFUNCTION(Server, Unreliable)
+	void ServerRPCPlayKnockDownAnimation();
+
+	UFUNCTION(Client, Unreliable)
+	void ClientRPCPlayKnockDownAnimation(ASMPlayerCharacter* InCharacterToAnimation);
+	
+	UFUNCTION(Server, Reliable)
+	void ServerRPCDetachToCaster(FVector_NetQuantize10 InLocation, FRotator InRotation);
 
 	/** 스매시 애니메이션이 종료되고난 뒤에 호출됩니다. */
 	void SmashEnded(UAnimMontage* PlayAnimMontage, bool bInterrupted);
-	
-	UFUNCTION(Server, Reliable)
-	void ServerRPCDetachToCaster(FVector InLocation, FRotator InRotation);
 
 	UFUNCTION(Client, Reliable)
-	void ClientRPCSetRotationAndEnableControlYaw(FRotator InRotation);
+	void ClientRPCSetRotation(FRotator InRotation);
 
 	/** 타이머 실행 이후(기상 시간) 기상 애니메이션을 재생시킵니다. */
 	UFUNCTION(NetMulticast, Unreliable)
@@ -236,15 +267,5 @@ protected:
 
 	/** 기상 애니메이션이 종료되고난 뒤에 호출됩니다. */
 	void StandUpEnded(UAnimMontage* PlayAnimMontage, bool bInterrupted);
-
-	/** 디태치를 모두에게 적용하고 카메라 뷰 타겟을 되돌립니다.*/
-	UFUNCTION(NetMulticast, Reliable)
-	void MulticastRPCDetachToCaster(ASMPlayerCharacter* InCaster, ASMPlayerCharacter* InTarget);
 // ~End of Smash Section
-
-// ~Test
-public:
-	FVector TestLocation;
-	FRotator TestRotation;
-// ~Test
 };
