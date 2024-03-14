@@ -29,5 +29,5 @@ protected: // Data Section
 	virtual void CheckAssetLoaded();
 
 	UPROPERTY()
-	TObjectPtr<USMCharacterAssetData> AssetData;
+	TObjectPtr<const USMCharacterAssetData> AssetData;
 };

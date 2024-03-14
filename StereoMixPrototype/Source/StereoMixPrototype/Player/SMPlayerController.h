@@ -6,6 +6,7 @@
 #include "GameFramework/PlayerController.h"
 #include "SMPlayerController.generated.h"
 
+class UInputAction;
 class USMCharacterAssetData;
 /**
  * 
@@ -20,4 +21,12 @@ public:
 	
 protected:
 	virtual void BeginPlay() override;
+	virtual void SetupInputComponent() override;
+
+protected: // Exit Section
+	UFUNCTION(BlueprintImplementableEvent)
+	void Exit();
+	
+	UPROPERTY(EditAnywhere, Category = "Ref(Input)")
+	TObjectPtr<UInputAction> ExitAction;
 };
