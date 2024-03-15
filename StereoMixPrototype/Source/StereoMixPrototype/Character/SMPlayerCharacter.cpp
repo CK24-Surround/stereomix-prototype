@@ -18,6 +18,7 @@
 #include "Physics/SMCollision.h"
 #include "Player/AimPlane.h"
 #include "Player/SMPlayerController.h"
+#include "Projectile/SMRangedAttackProjectile.h"
 
 ASMPlayerCharacter::ASMPlayerCharacter()
 {
@@ -50,6 +51,7 @@ ASMPlayerCharacter::ASMPlayerCharacter()
 	// Design
 	CatchTime = 0.25f;
 	StandUpTime = 3.0f;
+	RangedAttackFiringRate = 1.5f;
 }
 
 void ASMPlayerCharacter::PostInitializeComponents()
@@ -88,6 +90,7 @@ void ASMPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputC
 		EnhancedInputComponent->BindAction(AssetData->JumpAction, ETriggerEvent::Triggered, this, &ASMPlayerCharacter::Jump);
 		EnhancedInputComponent->BindAction(AssetData->HoldAction, ETriggerEvent::Started, this, &ASMPlayerCharacter::Catch);
 		EnhancedInputComponent->BindAction(AssetData->SmashAction, ETriggerEvent::Started, this, &ASMPlayerCharacter::Smash);
+		EnhancedInputComponent->BindAction(AssetData->RangedAttackAction, ETriggerEvent::Started, this, &ASMPlayerCharacter::RangedAttack);
 	}
 }
 
@@ -784,4 +787,27 @@ void ASMPlayerCharacter::StandUpEnded(UAnimMontage* PlayAnimMontage, bool bInter
 		SetCollisionProfileName(CP_PLAYER);
 		SetCanControl(true);
 	}
+}
+
+void ASMPlayerCharacter::RangedAttack()
+{
+	if (bCanRangedAttack)
+	{
+		bCanRangedAttack = false;
+
+		FTimerHandle TimerHandle;
+		const float Rate = 1.0f / RangedAttackFiringRate;
+		GetWorldTimerManager().SetTimer(TimerHandle, this, &ASMPlayerCharacter::CanRangedAttack, Rate);
+		
+		ServerRPCRequestShootProjectile();
+	}
+}
+
+void ASMPlayerCharacter::CanRangedAttack()
+{
+	bCanRangedAttack = true;
+}
+
+void ASMPlayerCharacter::ServerRPCRequestShootProjectile_Implementation()
+{
 }

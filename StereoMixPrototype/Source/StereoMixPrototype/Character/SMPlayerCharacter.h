@@ -91,11 +91,14 @@ public:
 protected:
 	void InitDesignData();
 
-	UPROPERTY(EditDefaultsOnly, Category = "Design(Catch)")
+	UPROPERTY(EditAnywhere, Category = "Design(Catch)")
 	float CatchTime;
 
-	UPROPERTY(EditDefaultsOnly, Category = "Design(Stand Up)")
+	UPROPERTY(EditAnywhere, Category = "Design(Stand Up)")
 	float StandUpTime;
+
+	UPROPERTY(EditAnywhere, Category = "Design(Ranged Attack)")
+	float RangedAttackFiringRate;
 // ~End of Design Section
 
 // ~Camera Section
@@ -268,4 +271,17 @@ protected:
 	/** 기상 애니메이션이 종료되고난 뒤에 호출됩니다. */
 	void StandUpEnded(UAnimMontage* PlayAnimMontage, bool bInterrupted);
 // ~End of Smash Section
+
+// ~Ranged Attack Section
+protected:
+	void RangedAttack();
+
+	void CanRangedAttack();
+
+	UFUNCTION(Server, Reliable)
+	void ServerRPCRequestShootProjectile();
+
+protected:
+	uint32 bCanRangedAttack:1 = true;
+// ~End of Ranged Attack Section
 };

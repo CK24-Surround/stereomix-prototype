@@ -6,6 +6,7 @@
 #include "Engine/DataAsset.h"
 #include "SMCharacterAssetData.generated.h"
 
+class ASMRangedAttackProjectile;
 class UInputAction;
 class UInputMappingContext;
 /**
@@ -31,4 +32,11 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	TObjectPtr<const UInputAction> SmashAction;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Input")
+	TObjectPtr<const UInputAction> RangedAttackAction;
+
+public:
+	UPROPERTY(EditDefaultsOnly, Category = "Projectile")
+	TSubclassOf<ASMRangedAttackProjectile> RangedAttackProjectileClass;
 };
