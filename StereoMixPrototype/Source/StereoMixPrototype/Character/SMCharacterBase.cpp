@@ -6,6 +6,7 @@
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "SMCharacterAssetData.h"
+#include "CharacterStat/SMCharacterStatComponent.h"
 #include "Data/AssetPath.h"
 
 // Sets default values
@@ -18,6 +19,8 @@ ASMCharacterBase::ASMCharacterBase()
 	{
 		AssetData = SMCharacterAssetDataRef.Object;
 	}
+
+	Stat = CreateDefaultSubobject<USMCharacterStatComponent>(TEXT("CharacterStat"));
 }
 
 void ASMCharacterBase::PostInitializeComponents()
@@ -37,7 +40,6 @@ void ASMCharacterBase::BeginPlay()
 void ASMCharacterBase::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
-
 }
 
 void ASMCharacterBase::CheckAssetLoaded()

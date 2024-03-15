@@ -32,6 +32,11 @@ ASMProjectile::ASMProjectile()
 	}
 
 	ProjectileMovementComponent = CreateDefaultSubobject<UProjectileMovementComponent>(TEXT("ProjectileMovement"));
+	ProjectileMovementComponent->ProjectileGravityScale = 0.0f;
+
+	bReplicates = true;
+
+	MaxDistance = 1500.0f;
 }
 
 void ASMProjectile::PostInitializeComponents()
@@ -51,8 +56,30 @@ void ASMProjectile::PostInitializeComponents()
 void ASMProjectile::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
-	
+
 	DOREPLIFETIME(ASMProjectile, OwningPawn);
+}
+
+void ASMProjectile::BeginPlay()
+{
+	Super::BeginPlay();
+
+	StartLocation = GetActorLocation();
+}
+
+void ASMProjectile::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+
+	if (HasAuthority())
+	{
+		const float DistanceSquared = FVector::DistSquared(StartLocation, GetActorLocation());
+		if (DistanceSquared >= FMath::Square(MaxDistance))
+		{
+			NET_LOG(LogSMProjectile, Log, TEXT("최대 사거리 도달"))
+			Destroy();
+		}
+	}
 }
 
 void ASMProjectile::OnRep_OwningPawn()

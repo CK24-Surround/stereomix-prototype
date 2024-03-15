@@ -6,6 +6,7 @@
 #include "Character/SMCharacterBase.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Interface/SMCharacterAnimationInterface.h"
+#include "Interface/SMProjectileInterface.h"
 #include "SMPlayerCharacter.generated.h"
 
 class USMCharacterAnimInstance;
@@ -29,7 +30,7 @@ enum class EPlayerCharacterState : uint8
  * 
  */
 UCLASS()
-class STEREOMIXPROTOTYPE_API ASMPlayerCharacter : public ASMCharacterBase, public ISMCharacterAnimationInterface
+class STEREOMIXPROTOTYPE_API ASMPlayerCharacter : public ASMCharacterBase, public ISMCharacterAnimationInterface, public ISMProjectileInterface
 {
 	GENERATED_BODY()
 
@@ -276,10 +277,20 @@ protected:
 protected:
 	void RangedAttack();
 
+	UFUNCTION(Server, Unreliable)
+	void ServerRPCPlayRangedAttackAnimation();
+
+	UFUNCTION(Client, Unreliable)
+	void ClientRPCPlayRangedAttackAnimation(const ASMPlayerCharacter* CharacterToAnimation) const;
+
 	void CanRangedAttack();
+	
+	virtual void AnimNotify_RangedAttack() override;
 
 	UFUNCTION(Server, Reliable)
-	void ServerRPCRequestShootProjectile();
+	void ServerRPCShootProjectile(ASMPlayerCharacter* NewOwner);
+
+	virtual void HitProjectile() override;
 
 protected:
 	uint32 bCanRangedAttack:1 = true;

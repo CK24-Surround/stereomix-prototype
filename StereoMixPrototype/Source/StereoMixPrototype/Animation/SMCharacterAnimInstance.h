@@ -43,6 +43,8 @@ public:
 	
 	void PlayKnockDown();
 	void PlayStandUp();
+
+	void PlayRangedAttack();
 // ~End of Montage Section
 
 // ~Delegate Section

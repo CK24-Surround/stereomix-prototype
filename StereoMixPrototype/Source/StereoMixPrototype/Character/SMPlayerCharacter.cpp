@@ -9,10 +9,13 @@
 #include "SMCharacterAssetData.h"
 #include "Animation/SMCharacterAnimInstance.h"
 #include "Camera/CameraComponent.h"
+#include "CharacterStat/SMCharacterStatComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/GameStateBase.h"
+#include "GameFramework/ProjectileMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
+#include "Kismet/GameplayStatics.h"
 #include "Log/SMLog.h"
 #include "Net/UnrealNetwork.h"
 #include "Physics/SMCollision.h"
@@ -90,7 +93,7 @@ void ASMPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputC
 		EnhancedInputComponent->BindAction(AssetData->JumpAction, ETriggerEvent::Triggered, this, &ASMPlayerCharacter::Jump);
 		EnhancedInputComponent->BindAction(AssetData->HoldAction, ETriggerEvent::Started, this, &ASMPlayerCharacter::Catch);
 		EnhancedInputComponent->BindAction(AssetData->SmashAction, ETriggerEvent::Started, this, &ASMPlayerCharacter::Smash);
-		EnhancedInputComponent->BindAction(AssetData->RangedAttackAction, ETriggerEvent::Started, this, &ASMPlayerCharacter::RangedAttack);
+		EnhancedInputComponent->BindAction(AssetData->RangedAttackAction, ETriggerEvent::Triggered, this, &ASMPlayerCharacter::RangedAttack);
 	}
 }
 
@@ -791,15 +794,41 @@ void ASMPlayerCharacter::StandUpEnded(UAnimMontage* PlayAnimMontage, bool bInter
 
 void ASMPlayerCharacter::RangedAttack()
 {
+	if (CaughtCharacter)
+	{
+		return;
+	}
+	
 	if (bCanRangedAttack)
 	{
+		NET_LOG(LogSMCharacter, Log, TEXT("원거리 공격 시전"))
 		bCanRangedAttack = false;
 
 		FTimerHandle TimerHandle;
 		const float Rate = 1.0f / RangedAttackFiringRate;
 		GetWorldTimerManager().SetTimer(TimerHandle, this, &ASMPlayerCharacter::CanRangedAttack, Rate);
-		
-		ServerRPCRequestShootProjectile();
+
+		StoredSMAnimInstance->PlayRangedAttack();
+		ServerRPCPlayRangedAttackAnimation();
+	}
+}
+
+void ASMPlayerCharacter::ServerRPCPlayRangedAttackAnimation_Implementation()
+{
+	for (const ASMPlayerCharacter* CharacterToAnimation : GetCharactersExcludingServerAndCaster())
+	{
+		if (CharacterToAnimation)
+		{
+			CharacterToAnimation->ClientRPCPlayRangedAttackAnimation(this);
+		}
+	}
+}
+
+void ASMPlayerCharacter::ClientRPCPlayRangedAttackAnimation_Implementation(const ASMPlayerCharacter* CharacterToAnimation) const
+{
+	if (CharacterToAnimation)
+	{
+		CharacterToAnimation->StoredSMAnimInstance->PlayRangedAttack();
 	}
 }
 
@@ -808,6 +837,34 @@ void ASMPlayerCharacter::CanRangedAttack()
 	bCanRangedAttack = true;
 }
 
-void ASMPlayerCharacter::ServerRPCRequestShootProjectile_Implementation()
+void ASMPlayerCharacter::AnimNotify_RangedAttack()
 {
+	if (IsLocallyControlled())
+	{
+		NET_LOG(LogSMCharacter, Log, TEXT("원거리 공격 시전"))
+		
+		ServerRPCShootProjectile(this);
+	}
+}
+
+void ASMPlayerCharacter::ServerRPCShootProjectile_Implementation(ASMPlayerCharacter* NewOwner)
+{
+	const FVector SpawnLocation = GetActorLocation() + (GetActorForwardVector() * GetCapsuleComponent()->GetScaledCapsuleRadius() * 2);
+	const FRotator SpawnRotation = GetActorRotation();
+	const FTransform SpawnTransform = FTransform(SpawnRotation, SpawnLocation);
+	ASMRangedAttackProjectile* CachedProjectile = GetWorld()->SpawnActorDeferred<ASMRangedAttackProjectile>(AssetData->RangedAttackProjectileClass, SpawnTransform);
+	if (CachedProjectile)
+	{
+		CachedProjectile->SetOwningPawn(NewOwner);
+	}
+
+	UGameplayStatics::FinishSpawningActor(CachedProjectile, SpawnTransform);
+}
+
+void ASMPlayerCharacter::HitProjectile()
+{
+	NET_LOG(LogSMCharacter, Log, TEXT("\"%s\"가 투사체에 적중 당했습니다."), *GetName())
+
+	Stat->AddCurrentPostureGauge(25.0f);
+	NET_LOG(LogSMCharacter, Log, TEXT("현재 체간 게이지 %f / %f"), Stat->GetCurrentPostureGauge(), Stat->GetStat().MaxPostureGauge);
 }

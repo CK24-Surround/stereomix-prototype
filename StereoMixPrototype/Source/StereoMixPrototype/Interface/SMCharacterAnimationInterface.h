@@ -28,4 +28,5 @@ public:
 
 	virtual void AnimNotify_Catch() = 0;
 	virtual void AnimNotify_Smash() = 0;
+	virtual void AnimNotify_RangedAttack() = 0;
 };

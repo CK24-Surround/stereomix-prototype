@@ -19,4 +19,13 @@ protected:
 
 public:
 	virtual void Tick(float DeltaTime) override;
+
+// ~Event Section
+protected:
+	virtual void OnBeginOverlap(AActor* OverlappedActor, AActor* OtherActor) override;
+// ~End of Event Section
+
+protected:
+	UFUNCTION(Server, Reliable)
+	void ServerRPCHitProjectile(AActor* HitActor, FVector_NetQuantize10 InLocation);
 };

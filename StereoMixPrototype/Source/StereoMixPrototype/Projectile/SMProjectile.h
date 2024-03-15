@@ -24,6 +24,12 @@ public:
 	virtual void PostInitializeComponents() override;
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
+protected:
+	virtual void BeginPlay() override;
+
+public:
+	virtual void Tick(float DeltaSeconds) override;
+
 // ~Component Section
 protected:
 	UPROPERTY(VisibleAnywhere, Category = "Collider")
@@ -59,7 +65,6 @@ protected:
 
 	UPROPERTY(ReplicatedUsing = OnRep_OwningPawn)
 	TObjectPtr<APawn> OwningPawn;
-
 // ~End of Property Replicate Section
 
 // ~Event Section
@@ -67,4 +72,12 @@ protected:
 	UFUNCTION()
 	virtual void OnBeginOverlap(AActor* OverlappedActor, AActor* OtherActor);
 // ~End of Event Section
+
+// ~Life Section
+protected:
+	FVector StartLocation;
+
+	UPROPERTY(EditAnywhere, Category = "Design")
+	float MaxDistance;
+// ~End of Life Section
 };

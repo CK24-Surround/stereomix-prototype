@@ -79,3 +79,9 @@ void USMCharacterAnimInstance::PlayStandUp()
 	Montage_Play(AssetData->DownEndMontage);
 	Montage_SetEndDelegate(OnStandUpEnded, AssetData->DownEndMontage);
 }
+
+void USMCharacterAnimInstance::PlayRangedAttack()
+{
+	NET_ANIM_LOG(LogSMAnim, Log, TEXT("원거리 공격 재생"));
+	Montage_Play(AssetData->RangedAttackMontage);
+}
