@@ -7,6 +7,9 @@
 #include "Data/SMCharacterStat.h"
 #include "SMCharacterStatComponent.generated.h"
 
+DECLARE_LOG_CATEGORY_CLASS(LogSMStat, Log, All);
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnChangedPostureGaugeSignature, float, CurrentPostureGauge, float, MaxPostureGauge);
 
 UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
 class STEREOMIXPROTOTYPE_API USMCharacterStatComponent : public UActorComponent
@@ -21,21 +24,39 @@ public:
 
 // ~Stat Section
 public:
-	FORCEINLINE const FSMCharacterStat& GetStat() const { return Stat; }
-	FORCEINLINE void SetStat(const FSMCharacterStat& InCharacterStat) { Stat = InCharacterStat; }
+	FORCEINLINE const FSMCharacterStat& GetBaseStat() const { return BaseStat; }
+	FORCEINLINE void SetBaseStat(const FSMCharacterStat& InCharacterStat) { BaseStat = InCharacterStat; }
 
 	FORCEINLINE float GetCurrentPostureGauge() const { return CurrentPostureGauge; }
-	FORCEINLINE void AddCurrentPostureGauge(float InCurrentPostureGauge);
-	FORCEINLINE void SetCurrentPostureGauge(float InCurrentPostureGauge) { CurrentPostureGauge = InCurrentPostureGauge; }
+	void AddCurrentPostureGauge(float InCurrentPostureGauge);
+	
+	FORCEINLINE void SetCurrentPostureGauge(float InCurrentPostureGauge)
+	{
+		if (GetOwnerRole() == ROLE_Authority)
+		{
+			CurrentPostureGauge = InCurrentPostureGauge;
+
+			OnRep_CurrentPostureGauge();
+		}
+	}
 
 protected:
 	UFUNCTION()
-	void OnRep_Stat();
-	
-	UPROPERTY(Transient, EditAnywhere, ReplicatedUsing = OnRep_Stat, Category = "Stat")
-	FSMCharacterStat Stat;
+	void OnRep_BaseStat();
 
-	UPROPERTY()
+	UPROPERTY(Transient, BlueprintReadOnly, EditAnywhere, ReplicatedUsing = OnRep_BaseStat, Category = "Stat")
+	FSMCharacterStat BaseStat;
+
+	UFUNCTION()
+	void OnRep_CurrentPostureGauge();
+
+	UPROPERTY(Transient, BlueprintReadOnly, ReplicatedUsing = OnRep_CurrentPostureGauge)
 	float CurrentPostureGauge;
 // ~End of Stat Section
+
+// ~Delegate Section
+public:
+	UPROPERTY(BlueprintAssignable)
+	FOnChangedPostureGaugeSignature OnChangedPostureGauge;
+// ~End of Delegate Section
 };

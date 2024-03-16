@@ -3,6 +3,7 @@
 
 #include "CharacterStat/SMCharacterStatComponent.h"
 
+#include "Log/SMLog.h"
 #include "Net/UnrealNetwork.h"
 
 USMCharacterStatComponent::USMCharacterStatComponent()
@@ -16,12 +17,23 @@ void USMCharacterStatComponent::GetLifetimeReplicatedProps(TArray<FLifetimePrope
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
-	DOREPLIFETIME(USMCharacterStatComponent, Stat);
+	DOREPLIFETIME(USMCharacterStatComponent, BaseStat);
+	DOREPLIFETIME(USMCharacterStatComponent, CurrentPostureGauge);
 }
 
 void USMCharacterStatComponent::AddCurrentPostureGauge(float InCurrentPostureGauge)
 {
-	CurrentPostureGauge = FMath::Clamp(CurrentPostureGauge + InCurrentPostureGauge, 0.0f, Stat.MaxPostureGauge);
+	const float NewPostureGauge = FMath::Clamp(CurrentPostureGauge + InCurrentPostureGauge, 0.0f, BaseStat.MaxPostureGauge);
+	SetCurrentPostureGauge(NewPostureGauge);
 }
 
-void USMCharacterStatComponent::OnRep_Stat() {}
+void USMCharacterStatComponent::OnRep_BaseStat()
+{
+	NET_COMP_LOG(LogSMStat, Log, TEXT("베이스 스탯 변경 감지"));
+}
+
+void USMCharacterStatComponent::OnRep_CurrentPostureGauge()
+{
+	NET_COMP_LOG(LogSMStat, Log, TEXT("체간 게이지 변경 감지"));
+	OnChangedPostureGauge.Broadcast(CurrentPostureGauge, BaseStat.MaxPostureGauge);
+}

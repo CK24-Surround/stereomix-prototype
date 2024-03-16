@@ -48,7 +48,7 @@ void ASMRangedAttackProjectile::ServerRPCHitProjectile_Implementation(AActor* Hi
 	if (ProjectileInterface)
 	{
 		const float Distance = FVector::Dist(InLocation, GetActorLocation());
-		NET_LOG(LogSMProjectile, Log, TEXT("서버와 위치 차이: %f"), Distance);
+		NET_LOG(LogSMProjectile, Log, TEXT("서버와 클라이언트의 위치 차이: %f"), Distance);
 		ProjectileInterface->HitProjectile();
 	}
 	

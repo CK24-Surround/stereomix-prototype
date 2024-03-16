@@ -6,9 +6,12 @@
 #include "Engine/DataAsset.h"
 #include "SMCharacterAssetData.generated.h"
 
+class USMPostureGaugeWidget;
 class ASMRangedAttackProjectile;
 class UInputAction;
 class UInputMappingContext;
+class UUserWidget;
+
 /**
  * 
  */
@@ -39,4 +42,8 @@ public:
 public:
 	UPROPERTY(EditDefaultsOnly, Category = "Projectile")
 	TSubclassOf<ASMRangedAttackProjectile> RangedAttackProjectileClass;
+
+public:
+	UPROPERTY(EditDefaultsOnly, Category = "UI")
+	TSubclassOf<USMPostureGaugeWidget> PostureGauge;
 };

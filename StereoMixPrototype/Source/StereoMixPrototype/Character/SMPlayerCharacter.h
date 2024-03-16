@@ -9,6 +9,8 @@
 #include "Interface/SMProjectileInterface.h"
 #include "SMPlayerCharacter.generated.h"
 
+class USMPostureGaugeWidget;
+class UWidgetComponent;
 class USMCharacterAnimInstance;
 class AAimPlane;
 class ASMPlayerController;
@@ -290,9 +292,19 @@ protected:
 	UFUNCTION(Server, Reliable)
 	void ServerRPCShootProjectile(ASMPlayerCharacter* NewOwner);
 
+	/** 투사체에 적중당하면 서버측에서 호출됩니다. */
 	virtual void HitProjectile() override;
 
 protected:
 	uint32 bCanRangedAttack:1 = true;
 // ~End of Ranged Attack Section
+
+// ~UI Section
+protected:
+	UPROPERTY(VisibleAnywhere, Category = "UI")
+	TObjectPtr<UWidgetComponent> PostureGauge;
+
+	UPROPERTY()
+	TObjectPtr<USMPostureGaugeWidget> PostureGaugeWidget;
+// ~End of UI Section
 };

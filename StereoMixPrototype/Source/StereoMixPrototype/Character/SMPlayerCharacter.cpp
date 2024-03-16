@@ -11,9 +11,9 @@
 #include "Camera/CameraComponent.h"
 #include "CharacterStat/SMCharacterStatComponent.h"
 #include "Components/CapsuleComponent.h"
+#include "Components/WidgetComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/GameStateBase.h"
-#include "GameFramework/ProjectileMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Log/SMLog.h"
@@ -22,6 +22,7 @@
 #include "Player/AimPlane.h"
 #include "Player/SMPlayerController.h"
 #include "Projectile/SMRangedAttackProjectile.h"
+#include "UI/SMPostureGaugeWidget.h"
 
 ASMPlayerCharacter::ASMPlayerCharacter()
 {
@@ -42,6 +43,15 @@ ASMPlayerCharacter::ASMPlayerCharacter()
 
 	Camera = CreateDefaultSubobject<UCameraComponent>(TEXT("Camera"));
 	Camera->SetupAttachment(CameraBoom);
+
+	PostureGauge = CreateDefaultSubobject<UWidgetComponent>(TEXT("PostureGauge"));
+	PostureGauge->SetupAttachment(GetRootComponent());
+	PostureGauge->SetWidgetSpace(EWidgetSpace::Screen);
+	PostureGauge->SetDrawAtDesiredSize(true);
+	if (AssetData->PostureGauge)
+	{
+		PostureGauge->SetWidgetClass(AssetData->PostureGauge);
+	}
 
 	InitCamera();
 
@@ -198,6 +208,17 @@ void ASMPlayerCharacter::BeginPlay()
 		AimPlane = GetWorld()->SpawnActor<AAimPlane>();
 		const FAttachmentTransformRules AttachmentTransformRules(EAttachmentRule::SnapToTarget, true);
 		AimPlane->AttachToActor(this, AttachmentTransformRules);
+	}
+
+	// 서버는 UI 업데이트가 필요하지 않습니다.
+	if (!HasAuthority())
+	{
+		PostureGaugeWidget = Cast<USMPostureGaugeWidget>(PostureGauge->GetWidget());
+		if (PostureGaugeWidget)
+		{
+			Stat->OnChangedPostureGauge.AddDynamic(PostureGaugeWidget, &USMPostureGaugeWidget::UpdatePostureGauge);
+			PostureGaugeWidget->UpdatePostureGauge(Stat->GetCurrentPostureGauge(), Stat->GetBaseStat().MaxPostureGauge);
+		}
 	}
 
 	InitCharacterControl();
@@ -798,7 +819,7 @@ void ASMPlayerCharacter::RangedAttack()
 	{
 		return;
 	}
-	
+
 	if (bCanRangedAttack)
 	{
 		NET_LOG(LogSMCharacter, Log, TEXT("원거리 공격 시전"))
@@ -842,7 +863,7 @@ void ASMPlayerCharacter::AnimNotify_RangedAttack()
 	if (IsLocallyControlled())
 	{
 		NET_LOG(LogSMCharacter, Log, TEXT("원거리 공격 시전"))
-		
+
 		ServerRPCShootProjectile(this);
 	}
 }
@@ -866,5 +887,5 @@ void ASMPlayerCharacter::HitProjectile()
 	NET_LOG(LogSMCharacter, Log, TEXT("\"%s\"가 투사체에 적중 당했습니다."), *GetName())
 
 	Stat->AddCurrentPostureGauge(25.0f);
-	NET_LOG(LogSMCharacter, Log, TEXT("현재 체간 게이지 %f / %f"), Stat->GetCurrentPostureGauge(), Stat->GetStat().MaxPostureGauge);
+	NET_LOG(LogSMCharacter, Log, TEXT("현재 체간 게이지 %f / %f"), Stat->GetCurrentPostureGauge(), Stat->GetBaseStat().MaxPostureGauge);
 }
