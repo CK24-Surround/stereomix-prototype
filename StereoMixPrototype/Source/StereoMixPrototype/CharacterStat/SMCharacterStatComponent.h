@@ -10,6 +10,7 @@
 DECLARE_LOG_CATEGORY_CLASS(LogSMStat, Log, All);
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnChangedPostureGaugeSignature, float, CurrentPostureGauge, float, MaxPostureGauge);
+DECLARE_MULTICAST_DELEGATE(FOnZeroPostureGaugeSignature);
 
 UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
 class STEREOMIXPROTOTYPE_API USMCharacterStatComponent : public UActorComponent
@@ -40,6 +41,8 @@ public:
 		}
 	}
 
+	void ClearPostureGauge();
+
 protected:
 	UFUNCTION()
 	void OnRep_BaseStat();
@@ -58,5 +61,7 @@ protected:
 public:
 	UPROPERTY(BlueprintAssignable)
 	FOnChangedPostureGaugeSignature OnChangedPostureGauge;
+
+	FOnZeroPostureGaugeSignature OnZeroPostureGauge;
 // ~End of Delegate Section
 };

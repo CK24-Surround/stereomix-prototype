@@ -24,6 +24,7 @@ UENUM(BlueprintType)
 enum class EPlayerCharacterState : uint8
 {
 	Normal,
+	Stun,
 	Caught,
 	Down
 };
@@ -54,7 +55,7 @@ protected:
 protected:
 	UFUNCTION()
 	void OnRep_bCanControl();
-	
+
 	UFUNCTION()
 	void OnRep_CurrentState();
 
@@ -66,14 +67,17 @@ protected:
 
 	UFUNCTION()
 	void OnRep_CollisionProfileName();
-	
+
+	UFUNCTION()
+	void OnRep_bIsStunned();
+
 protected:
 	UPROPERTY(ReplicatedUsing = OnRep_bCanControl)
 	uint32 bCanControl:1;
-	
+
 	UPROPERTY(ReplicatedUsing = OnRep_CurrentState)
 	EPlayerCharacterState CurrentState;
-	
+
 	UPROPERTY(ReplicatedUsing = OnRep_bEnableMovement)
 	uint32 bEnableMovement:1;
 
@@ -82,6 +86,9 @@ protected:
 
 	UPROPERTY(ReplicatedUsing = OnRep_CollisionProfileName)
 	FName CollisionProfileName;
+
+	UPROPERTY(ReplicatedUsing = OnRep_bIsStunned)
+	uint32 bIsStunned:1;
 // ~End of Property Replicate Section
 
 protected:
@@ -102,6 +109,12 @@ protected:
 
 	UPROPERTY(EditAnywhere, Category = "Design(Ranged Attack)")
 	float RangedAttackFiringRate;
+
+	UPROPERTY(EditAnywhere, Category = "Design(Ranged Attack)")
+	float CatchCoolDownTime;
+
+	UPROPERTY(EditAnywhere, Category = "Design(Stun)")
+	float StunTime;
 // ~End of Design Section
 
 // ~Camera Section
@@ -141,6 +154,33 @@ public:
 	void SetCurrentState(EPlayerCharacterState InState);
 	void SetEnableCollision(bool bInEnableCollision);
 	void SetCollisionProfileName(FName InCollisionProfileName);
+
+	FORCEINLINE void SetStunned(bool bInStunned)
+	{
+		if (HasAuthority())
+		{
+			bIsStunned = bInStunned;
+			OnRep_bIsStunned();
+		}
+	}
+
+protected:
+	/** 서버에서 실행됩니다.*/
+	void ApplyStunned();
+
+	UFUNCTION(NetMulticast, Unreliable)
+	void MulticastRPCPlayStunAnimation();
+
+	/** 서버에서 실행됩니다.*/
+	void RecoverStunned();
+
+	UFUNCTION(NetMulticast, Unreliable)
+	void MulticastRPCPlayStunEndAnimation();
+
+	void StunEnded(UAnimMontage* InAnimMontage, bool bInterrupted);
+
+protected:
+	FTimerHandle StunTimerHandle;
 // ~End of Character Section
 
 // ~Aim Section
@@ -148,7 +188,7 @@ protected:
 	UPROPERTY()
 	TObjectPtr<AAimPlane> AimPlane;
 // ~End of Aim Section
-	
+
 // ~Control Section
 public:
 	void SetCanControl(bool bInEnableControl);
@@ -157,7 +197,7 @@ protected:
 	UPROPERTY()
 	TObjectPtr<ASMPlayerController> StoredSMPlayerController;
 // ~End of Control Section
-	
+
 // ~Util Section
 public:
 	/** 서버와 시전자를 제외한 플레이어 캐릭터들을 반환합니다. */
@@ -193,19 +233,21 @@ protected:
 		float TotalTime = 0.25f;
 		float LastServerTime = 0.0f;
 	};
-	
-public: 
+
+public:
 	void SetCaughtCharacter(ASMPlayerCharacter* InCaughtCharacter);
 
 protected:
 	void Catch();
+
+	void CanCatch();
 
 	UFUNCTION(Server, Unreliable)
 	void ServerRPCPlayCatchAnimation();
 
 	UFUNCTION(Client, Unreliable)
 	void ClientRPCPlayCatchAnimation(const ASMPlayerCharacter* InPlayAnimationCharacter) const;
-	
+
 	virtual void AnimNotify_Catch() override;
 
 	UFUNCTION(Server, Reliable)
@@ -225,7 +267,8 @@ protected:
 
 	UFUNCTION(Client, Reliable)
 	void ClientRPCPlayCaughtAnimation(ASMPlayerCharacter* InPlayAnimationCharacter) const;
-
+	
+protected:
 	FPullData PullData;
 
 	UPROPERTY()
@@ -233,6 +276,8 @@ protected:
 
 	UPROPERTY(Replicated)
 	TObjectPtr<ASMPlayerCharacter> CaughtCharacter;
+
+	uint32 bCanCatch:1 = true;
 
 public: // Animation Interface Section
 	FORCEINLINE virtual bool GetHasAcceleration() override { return GetCharacterMovement()->GetCurrentAcceleration() != FVector::ZeroVector; }
@@ -257,7 +302,7 @@ protected:
 
 	UFUNCTION(Client, Unreliable)
 	void ClientRPCPlayKnockDownAnimation(ASMPlayerCharacter* InCharacterToAnimation);
-	
+
 	UFUNCTION(Server, Reliable)
 	void ServerRPCDetachToCaster(FVector_NetQuantize10 InLocation, FRotator InRotation);
 
@@ -286,7 +331,7 @@ protected:
 	void ClientRPCPlayRangedAttackAnimation(const ASMPlayerCharacter* CharacterToAnimation) const;
 
 	void CanRangedAttack();
-	
+
 	virtual void AnimNotify_RangedAttack() override;
 
 	UFUNCTION(Server, Reliable)

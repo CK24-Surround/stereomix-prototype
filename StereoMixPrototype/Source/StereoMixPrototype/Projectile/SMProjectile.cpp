@@ -9,6 +9,7 @@
 #include "GameFramework/ProjectileMovementComponent.h"
 #include "Log/SMLog.h"
 #include "Net/UnrealNetwork.h"
+#include "Physics/SMCollision.h"
 
 ASMProjectile::ASMProjectile()
 {
@@ -22,6 +23,7 @@ ASMProjectile::ASMProjectile()
 
 	SphereComponent = CreateDefaultSubobject<USphereComponent>(TEXT("Sphere"));
 	SetRootComponent(SphereComponent);
+	SphereComponent->SetCollisionProfileName(CP_PROJECTILE);
 
 	MeshComponent = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Mesh"));
 	MeshComponent->SetupAttachment(SphereComponent);
@@ -43,11 +45,9 @@ void ASMProjectile::PostInitializeComponents()
 {
 	Super::PostInitializeComponents();
 
-	if (HasAuthority())
-	{
-		SetActorEnableCollision(false);
-	}
-	else
+	OnActorHit.AddDynamic(this, &ASMProjectile::OnHit);
+	
+	if (!HasAuthority())
 	{
 		OnActorBeginOverlap.AddDynamic(this, &ASMProjectile::OnBeginOverlap);
 	}
@@ -88,4 +88,9 @@ void ASMProjectile::OnRep_OwningPawn()
 	SetOwner(OwningPawn);
 }
 
+void ASMProjectile::OnHit(AActor* SelfActor, AActor* OtherActor, FVector NormalImpulse, const FHitResult& Hit)
+{
+	NET_LOG(LogSMProjectile, Log, TEXT("벽 충돌"))
+	Destroy();
+}
 void ASMProjectile::OnBeginOverlap(AActor* OverlappedActor, AActor* OtherActor) {}

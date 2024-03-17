@@ -27,6 +27,11 @@ void USMCharacterStatComponent::AddCurrentPostureGauge(float InCurrentPostureGau
 	SetCurrentPostureGauge(NewPostureGauge);
 }
 
+void USMCharacterStatComponent::ClearPostureGauge()
+{
+	SetCurrentPostureGauge(0.0f);
+}
+
 void USMCharacterStatComponent::OnRep_BaseStat()
 {
 	NET_COMP_LOG(LogSMStat, Log, TEXT("베이스 스탯 변경 감지"));
@@ -36,4 +41,10 @@ void USMCharacterStatComponent::OnRep_CurrentPostureGauge()
 {
 	NET_COMP_LOG(LogSMStat, Log, TEXT("체간 게이지 변경 감지"));
 	OnChangedPostureGauge.Broadcast(CurrentPostureGauge, BaseStat.MaxPostureGauge);
+
+	if (CurrentPostureGauge >= BaseStat.MaxPostureGauge)
+	{
+		NET_COMP_LOG(LogSMStat, Log, TEXT("체간 게이지가 가득참"));
+		OnZeroPostureGauge.Broadcast();
+	}
 }

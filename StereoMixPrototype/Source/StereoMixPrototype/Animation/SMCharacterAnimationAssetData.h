@@ -15,21 +15,28 @@ class STEREOMIXPROTOTYPE_API USMCharacterAnimationAssetData : public UPrimaryDat
 	GENERATED_BODY()
 
 public:
-	UPROPERTY(EditDefaultsOnly, Category = "Animation")
+	UPROPERTY(EditDefaultsOnly, Category = "AnimationMontage")
 	TObjectPtr<UAnimMontage> CatchMontage;
 
-	UPROPERTY(EditDefaultsOnly, Category = "Animation")
+	UPROPERTY(EditDefaultsOnly, Category = "AnimationMontage")
 	TObjectPtr<UAnimMontage> CaughtMontage;
 
-	UPROPERTY(EditDefaultsOnly, Category = "Animation")
+	UPROPERTY(EditDefaultsOnly, Category = "AnimationMontage")
 	TObjectPtr<UAnimMontage> SmashMontage;
 
-	UPROPERTY(EditDefaultsOnly, Category = "Animation")
+	UPROPERTY(EditDefaultsOnly, Category = "AnimationMontage")
 	TObjectPtr<UAnimMontage> DownStartMontage;
 
-	UPROPERTY(EditDefaultsOnly, Category = "Animation")
+	UPROPERTY(EditDefaultsOnly, Category = "AnimationMontage")
 	TObjectPtr<UAnimMontage> DownEndMontage;
 
-	UPROPERTY(EditDefaultsOnly, Category = "Animation")
+	UPROPERTY(EditDefaultsOnly, Category = "AnimationMontage")
 	TObjectPtr<UAnimMontage> RangedAttackMontage;
+
+	UPROPERTY(EditDefaultsOnly, Category = "AnimationMontage")
+	TObjectPtr<UAnimMontage> Stun;
+
+public:
+	UPROPERTY(EditDefaultsOnly, Category = "AnimationSequence")
+	TObjectPtr<UAnimSequence> StunEnd;
 };

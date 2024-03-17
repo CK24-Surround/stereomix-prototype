@@ -70,6 +70,9 @@ protected:
 // ~Event Section
 protected:
 	UFUNCTION()
+	virtual void OnHit(AActor* SelfActor, AActor* OtherActor, FVector NormalImpulse, const FHitResult& Hit);
+
+	UFUNCTION()
 	virtual void OnBeginOverlap(AActor* OverlappedActor, AActor* OtherActor);
 // ~End of Event Section
 

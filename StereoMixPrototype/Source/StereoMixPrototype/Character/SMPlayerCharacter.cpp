@@ -60,11 +60,14 @@ ASMPlayerCharacter::ASMPlayerCharacter()
 	bEnableMovement = true;
 	bCanControl = true;
 	CollisionProfileName = CP_PLAYER;
+	bIsStunned = false;
 
 	// Design
 	CatchTime = 0.25f;
 	StandUpTime = 3.0f;
 	RangedAttackFiringRate = 1.5f;
+	CatchCoolDownTime = 3.0f;
+	StunTime = 6.0f;
 }
 
 void ASMPlayerCharacter::PostInitializeComponents()
@@ -77,6 +80,8 @@ void ASMPlayerCharacter::PostInitializeComponents()
 	{
 		StoredSMAnimInstance->OnSmashEnded.BindUObject(this, &ASMPlayerCharacter::SmashEnded);
 		StoredSMAnimInstance->OnStandUpEnded.BindUObject(this, &ASMPlayerCharacter::StandUpEnded);
+		StoredSMAnimInstance->OnStunEnded.BindUObject(this, &ASMPlayerCharacter::StunEnded);
+		Stat->OnZeroPostureGauge.AddUObject(this, &ASMPlayerCharacter::ApplyStunned);
 	}
 }
 
@@ -117,6 +122,7 @@ void ASMPlayerCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& O
 	DOREPLIFETIME(ASMPlayerCharacter, bEnableMovement);
 	DOREPLIFETIME(ASMPlayerCharacter, CaughtCharacter);
 	DOREPLIFETIME(ASMPlayerCharacter, CollisionProfileName);
+	DOREPLIFETIME(ASMPlayerCharacter, bIsStunned);
 }
 
 void ASMPlayerCharacter::OnRep_Controller()
@@ -158,6 +164,11 @@ void ASMPlayerCharacter::OnRep_CurrentState()
 		case EPlayerCharacterState::Normal:
 		{
 			NET_LOG(LogSMCharacter, Log, TEXT("현재 캐릭터 상태: Normal"));
+			break;
+		}
+		case EPlayerCharacterState::Stun:
+		{
+			NET_LOG(LogSMCharacter, Log, TEXT("현재 캐릭터 상태: Stun"));
 			break;
 		}
 		case EPlayerCharacterState::Caught:
@@ -386,6 +397,61 @@ void ASMPlayerCharacter::SetCollisionProfileName(FName InCollisionProfileName)
 	OnRep_CollisionProfileName();
 }
 
+void ASMPlayerCharacter::ApplyStunned()
+{
+	NET_LOG(LogSMCharacter, Log, TEXT("기절 상태 적용"));
+	SetStunned(true);
+
+	StoredSMAnimInstance->PlayStun();
+	MulticastRPCPlayStunAnimation();
+	const float StunEndTime = StunTime - StoredSMAnimInstance->GetStunEndLength();
+	GetWorldTimerManager().SetTimer(StunTimerHandle, this, &ASMPlayerCharacter::RecoverStunned, StunEndTime, false);
+}
+
+void ASMPlayerCharacter::MulticastRPCPlayStunAnimation_Implementation()
+{
+	if (!HasAuthority())
+	{
+		StoredSMAnimInstance->PlayStun();
+	}
+}
+
+void ASMPlayerCharacter::RecoverStunned()
+{
+	StoredSMAnimInstance->PlayStunEnd();
+	MulticastRPCPlayStunEndAnimation();
+}
+
+void ASMPlayerCharacter::MulticastRPCPlayStunEndAnimation_Implementation()
+{
+	if (!HasAuthority())
+	{
+		StoredSMAnimInstance->PlayStunEnd();
+	}
+}
+
+void ASMPlayerCharacter::StunEnded(UAnimMontage* InAnimMontage, bool bInterrupted)
+{
+	if (bInterrupted)
+	{
+		NET_LOG(LogSMCharacter, Log, TEXT("기절 애니메이션 중단"));
+		return;
+	}
+
+	if (CurrentState == EPlayerCharacterState::Stun)
+	{
+		Stat->ClearPostureGauge();
+		SetStunned(false);
+	}
+}
+
+void ASMPlayerCharacter::OnRep_bIsStunned()
+{
+	NET_LOG(LogSMCharacter, Log, TEXT("스턴 상태: %s"), bIsStunned ? TEXT("활성화") : TEXT("비활성화"));
+	SetCanControl(!bIsStunned);
+	bIsStunned ? SetCollisionProfileName(CP_STUNNED) : SetCollisionProfileName(CP_PLAYER);
+}
+
 void ASMPlayerCharacter::SetCanControl(bool bInEnableControl)
 {
 	if (!HasAuthority())
@@ -463,11 +529,25 @@ void ASMPlayerCharacter::SetCaughtCharacter(ASMPlayerCharacter* InCaughtCharacte
 
 void ASMPlayerCharacter::Catch()
 {
-	if (!CaughtCharacter)
+	if (bCanCatch)
 	{
-		StoredSMAnimInstance->PlayCatch();
-		ServerRPCPlayCatchAnimation();
+		NET_LOG(LogSMCharacter, Log, TEXT("잡기 시전"));
+		bCanCatch = false;
+
+		FTimerHandle TimerHandle;
+		GetWorldTimerManager().SetTimer(TimerHandle, this, &ASMPlayerCharacter::CanCatch, CatchCoolDownTime);
+		
+		if (!CaughtCharacter)
+		{
+			StoredSMAnimInstance->PlayCatch();
+			ServerRPCPlayCatchAnimation();
+		}
 	}
+}
+
+void ASMPlayerCharacter::CanCatch()
+{
+	bCanCatch = true;
 }
 
 void ASMPlayerCharacter::ServerRPCPlayCatchAnimation_Implementation()
@@ -487,14 +567,16 @@ void ASMPlayerCharacter::AnimNotify_Catch()
 {
 	if (IsLocallyControlled())
 	{
-		NET_LOG(LogSMCharacter, Log, TEXT("잡기 시전"));
+		NET_LOG(LogSMCharacter, Log, TEXT("잡기 시작"));
+
+		// 나중에 기절 종료 애니메이션이 재생되는 중에 잡기가 성사되고, 서버지연으로인해 잡기가 먼저 처리 된 뒤 기절 종료 애니가 재생 마무리 될경우 버그를 방지하기 위해 서버측에서 유효하지 않은 상황이라면 롤백하는 검증 코드가 필요합니다.
 
 		// 충돌 로직
 		FHitResult HitResult;
 		const FVector Start = GetActorLocation();
 		const FVector End = Start + (GetActorForwardVector() * 300.0f);
 		FCollisionObjectQueryParams CollisionObjectQueryParams;
-		CollisionObjectQueryParams.AddObjectTypesToQuery(ECC_Pawn);
+		CollisionObjectQueryParams.AddObjectTypesToQuery(OC_STUNNED);
 		FCollisionQueryParams CollisionQueryParams(SCENE_QUERY_STAT(Catch), false, this);
 		const bool bSuccess = GetWorld()->SweepSingleByObjectType(HitResult, Start, End, FQuat::Identity, CollisionObjectQueryParams, FCollisionShape::MakeSphere(50.0f), CollisionQueryParams);
 
@@ -520,10 +602,16 @@ void ASMPlayerCharacter::ServerRPCPerformPull_Implementation(ASMPlayerCharacter*
 {
 	NET_LOG(LogSMCharacter, Log, TEXT("당기기 시작"));
 
+	// 기절 타이머 초기화
+	// 현재는 잡힌 도중 기절에서 탈출할 수 없도록 설계했습니다. 추후 탈출 로직 추가가 필요합니다.
+	InTargetCharacter->GetWorldTimerManager().ClearTimer(InTargetCharacter->StunTimerHandle);
+
 	// 클라이언트 제어권 박탈 및 충돌 판정 비활성화
 	InTargetCharacter->SetCanControl(false);
 	InTargetCharacter->SetEnableMovement(false);
 	InTargetCharacter->SetEnableCollision(false);
+
+	InTargetCharacter->SetCurrentState(EPlayerCharacterState::Caught);
 
 	// 당기기에 필요한 데이터 할당
 	InTargetCharacter->PullData.bIsPulling = true;
@@ -631,7 +719,6 @@ void ASMPlayerCharacter::HandlePullEnd()
 
 		GetCharacterMovement()->bIgnoreClientMovementErrorChecksAndCorrection = true;
 		PullData.Caster->SetCaughtCharacter(this);
-		SetCurrentState(EPlayerCharacterState::Caught);
 
 		AttachToComponent(PullData.Caster->GetMesh(), FAttachmentTransformRules::SnapToTargetIncludingScale, TEXT("CatchSocket"));
 		StoredSMPlayerController->SetViewTargetWithBlend(PullData.Caster, 0.3f);
@@ -807,6 +894,7 @@ void ASMPlayerCharacter::StandUpEnded(UAnimMontage* PlayAnimMontage, bool bInter
 	if (HasAuthority())
 	{
 		NET_LOG(LogSMCharacter, Log, TEXT("기상 애니메이션 종료"));
+		Stat->ClearPostureGauge();
 		SetCurrentState(EPlayerCharacterState::Normal);
 		SetCollisionProfileName(CP_PLAYER);
 		SetCanControl(true);
@@ -822,7 +910,7 @@ void ASMPlayerCharacter::RangedAttack()
 
 	if (bCanRangedAttack)
 	{
-		NET_LOG(LogSMCharacter, Log, TEXT("원거리 공격 시전"))
+		NET_LOG(LogSMCharacter, Log, TEXT("원거리 공격 시전"));
 		bCanRangedAttack = false;
 
 		FTimerHandle TimerHandle;

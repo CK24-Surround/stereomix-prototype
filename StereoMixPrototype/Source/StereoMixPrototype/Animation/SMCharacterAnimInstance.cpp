@@ -85,3 +85,30 @@ void USMCharacterAnimInstance::PlayRangedAttack()
 	NET_ANIM_LOG(LogSMAnim, Log, TEXT("원거리 공격 재생"));
 	Montage_Play(AssetData->RangedAttackMontage);
 }
+
+void USMCharacterAnimInstance::PlayStun()
+{
+	NET_ANIM_LOG(LogSMAnim, Log, TEXT("기절 애니메이션 재생"));
+	Montage_Play(AssetData->Stun);
+	Montage_SetEndDelegate(OnStunEnded, AssetData->Stun);
+}
+
+void USMCharacterAnimInstance::PlayStunEnd()
+{
+	NET_ANIM_LOG(LogSMAnim, Log, TEXT("기절 종료 애니메이션 재생"));
+	if (Montage_IsPlaying(AssetData->Stun))
+	{
+		Montage_JumpToSection(TEXT("End"), AssetData->Stun);
+	}
+}
+
+float USMCharacterAnimInstance::GetStunEndLength()
+{
+	float StunEndLength = 0.0f;
+	if (AssetData->StunEnd)
+	{
+		StunEndLength = AssetData->StunEnd->GetPlayLength();
+	}
+
+	return StunEndLength;
+}
