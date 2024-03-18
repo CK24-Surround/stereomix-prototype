@@ -6,3 +6,5 @@
 #define CHARACTER_ANIMATION_ASSET_PATH TEXT("/Script/StereoMixPrototype.SMCharacterAnimationAssetData'/Game/StereoMixPrototype/Data/Asset/DA_CharacterAnimationAsset.DA_CharacterAnimationAsset'")
 
 #define PROJECTILE_ASSET_PATH TEXT("/Script/StereoMixPrototype.SMProjectileAssetData'/Game/StereoMixPrototype/Data/Asset/DA_ProjectileAsset.DA_ProjectileAsset'")
+
+#define PLAYER_CHARACTER_DESIGN_DATA_ASSET_PATH TEXT("/Script/StereoMixPrototype.SMPlayerCharacterDesignData'/Game/StereoMixPrototype/Design/DA_PlayerCharacterDesign.DA_PlayerCharacterDesign'")

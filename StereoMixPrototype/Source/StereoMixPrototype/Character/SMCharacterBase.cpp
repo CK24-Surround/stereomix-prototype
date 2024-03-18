@@ -8,6 +8,7 @@
 #include "SMCharacterAssetData.h"
 #include "CharacterStat/SMCharacterStatComponent.h"
 #include "Data/AssetPath.h"
+#include "Design/SMPlayerCharacterDesignData.h"
 
 // Sets default values
 ASMCharacterBase::ASMCharacterBase()
@@ -20,14 +21,23 @@ ASMCharacterBase::ASMCharacterBase()
 		AssetData = SMCharacterAssetDataRef.Object;
 	}
 
+	static ConstructorHelpers::FObjectFinder<USMPlayerCharacterDesignData> SMPlayerCharacterDesignDataRef(PLAYER_CHARACTER_DESIGN_DATA_ASSET_PATH);
+	if (SMPlayerCharacterDesignDataRef.Succeeded())
+	{
+		DesignData = SMPlayerCharacterDesignDataRef.Object;
+	}
+
+	check(AssetData);
+	check(DesignData);
+
+	AssetCheck();
+	
 	Stat = CreateDefaultSubobject<USMCharacterStatComponent>(TEXT("CharacterStat"));
 }
 
 void ASMCharacterBase::PostInitializeComponents()
 {
 	Super::PostInitializeComponents();
-
-	CheckAssetLoaded();
 }
 
 // Called when the game starts or when spawned
@@ -42,7 +52,8 @@ void ASMCharacterBase::Tick(float DeltaTime)
 	Super::Tick(DeltaTime);
 }
 
-void ASMCharacterBase::CheckAssetLoaded()
+void ASMCharacterBase::AssetCheck()
 {
 	check(AssetData);
+	check(DesignData);
 }

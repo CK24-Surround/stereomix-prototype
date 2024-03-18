@@ -6,6 +6,7 @@
 #include "GameFramework/Character.h"
 #include "SMCharacterBase.generated.h"
 
+class USMPlayerCharacterDesignData;
 class USMCharacterStatComponent;
 class USMCharacterAssetData;
 
@@ -25,13 +26,17 @@ protected:
 
 public:
 	virtual void Tick(float DeltaTime) override;
-	
+
 // ~Data Section
 protected:
-	virtual void CheckAssetLoaded();
+	void AssetCheck();
 
 	UPROPERTY()
 	TObjectPtr<const USMCharacterAssetData> AssetData;
+
+	UPROPERTY()
+	TObjectPtr<const USMPlayerCharacterDesignData> DesignData;
+
 // ~End of Data Section
 
 // ~Component Section

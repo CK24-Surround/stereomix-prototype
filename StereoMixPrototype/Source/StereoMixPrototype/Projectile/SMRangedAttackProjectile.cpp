@@ -3,15 +3,22 @@
 
 #include "SMRangedAttackProjectile.h"
 
+#include "Design/SMPlayerCharacterDesignData.h"
+#include "GameFramework/ProjectileMovementComponent.h"
 #include "Interface/SMProjectileInterface.h"
 #include "Log/SMLog.h"
 
 
-ASMRangedAttackProjectile::ASMRangedAttackProjectile() {}
+ASMRangedAttackProjectile::ASMRangedAttackProjectile()
+{
+	ProjectileMovementComponent->SetAutoActivate(false);
+}
 
 void ASMRangedAttackProjectile::BeginPlay()
 {
 	Super::BeginPlay();
+	ProjectileMovementComponent->Activate(true);
+	ProjectileMovementComponent->Velocity = GetActorForwardVector() * DesignData->RangedAttackProjectileSpeed;
 }
 
 void ASMRangedAttackProjectile::Tick(float DeltaTime)

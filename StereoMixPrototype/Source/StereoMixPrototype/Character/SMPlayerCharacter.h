@@ -26,7 +26,8 @@ enum class EPlayerCharacterState : uint8
 	Normal,
 	Stun,
 	Caught,
-	Down
+	Down,
+	Smash
 };
 
 /**
@@ -99,22 +100,6 @@ public:
 
 // ~Design Section
 protected:
-	void InitDesignData();
-
-	UPROPERTY(EditAnywhere, Category = "Design(Catch)")
-	float CatchTime;
-
-	UPROPERTY(EditAnywhere, Category = "Design(Stand Up)")
-	float StandUpTime;
-
-	UPROPERTY(EditAnywhere, Category = "Design(Ranged Attack)")
-	float RangedAttackFiringRate;
-
-	UPROPERTY(EditAnywhere, Category = "Design(Ranged Attack)")
-	float CatchCoolDownTime;
-
-	UPROPERTY(EditAnywhere, Category = "Design(Stun)")
-	float StunTime;
 // ~End of Design Section
 
 // ~Camera Section
@@ -151,6 +136,7 @@ protected:
 
 // ~Character State Section
 public:
+	FORCEINLINE EPlayerCharacterState GetCurrentState() { return CurrentState; }
 	void SetCurrentState(EPlayerCharacterState InState);
 	void SetEnableCollision(bool bInEnableCollision);
 	void SetCollisionProfileName(FName InCollisionProfileName);
@@ -235,6 +221,7 @@ protected:
 	};
 
 public:
+	FORCEINLINE ASMPlayerCharacter* GetCaughtCharacter() { return CaughtCharacter; }
 	void SetCaughtCharacter(ASMPlayerCharacter* InCaughtCharacter);
 
 protected:
@@ -267,7 +254,7 @@ protected:
 
 	UFUNCTION(Client, Reliable)
 	void ClientRPCPlayCaughtAnimation(ASMPlayerCharacter* InPlayAnimationCharacter) const;
-	
+
 protected:
 	FPullData PullData;
 

@@ -9,6 +9,7 @@
 class USMProjectileAssetData;
 class UProjectileMovementComponent;
 class USphereComponent;
+class USMPlayerCharacterDesignData;
 
 DECLARE_LOG_CATEGORY_CLASS(LogSMProjectile, Log, All);
 
@@ -38,7 +39,7 @@ protected:
 	UPROPERTY(VisibleAnywhere, Category = "Mesh")
 	TObjectPtr<UStaticMeshComponent> MeshComponent;
 
-	UPROPERTY(VisibleAnywhere, Category = "Projectile")
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Projectile")
 	TObjectPtr<UProjectileMovementComponent> ProjectileMovementComponent;
 // ~End of Component Section
 
@@ -46,6 +47,9 @@ protected:
 protected:
 	UPROPERTY()
 	TObjectPtr<const USMProjectileAssetData> AssetData;
+
+	UPROPERTY()
+	TObjectPtr<const USMPlayerCharacterDesignData> DesignData;
 // ~End of Data Section
 
 // ~Property Replicate Section

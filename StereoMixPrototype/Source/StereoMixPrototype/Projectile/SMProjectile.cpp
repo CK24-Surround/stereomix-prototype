@@ -6,6 +6,7 @@
 #include "SMProjectileAssetData.h"
 #include "Components/SphereComponent.h"
 #include "Data/AssetPath.h"
+#include "Design/SMPlayerCharacterDesignData.h"
 #include "GameFramework/ProjectileMovementComponent.h"
 #include "Log/SMLog.h"
 #include "Net/UnrealNetwork.h"
@@ -20,6 +21,15 @@ ASMProjectile::ASMProjectile()
 	{
 		AssetData = DA_ProjectileAssetRef.Object;
 	}
+
+	static ConstructorHelpers::FObjectFinder<USMPlayerCharacterDesignData> DA_PlayerCharacterDesignDataRef(PLAYER_CHARACTER_DESIGN_DATA_ASSET_PATH);
+	if (DA_PlayerCharacterDesignDataRef.Succeeded())
+	{
+		DesignData = DA_PlayerCharacterDesignDataRef.Object;
+	}
+	
+	check(AssetData);
+	check(DesignData);
 
 	SphereComponent = CreateDefaultSubobject<USphereComponent>(TEXT("Sphere"));
 	SetRootComponent(SphereComponent);
@@ -38,7 +48,7 @@ ASMProjectile::ASMProjectile()
 
 	bReplicates = true;
 
-	MaxDistance = 1500.0f;
+	MaxDistance = DesignData->RangedAttackMaxDistance;
 }
 
 void ASMProjectile::PostInitializeComponents()
@@ -46,7 +56,7 @@ void ASMProjectile::PostInitializeComponents()
 	Super::PostInitializeComponents();
 
 	OnActorHit.AddDynamic(this, &ASMProjectile::OnHit);
-	
+
 	if (!HasAuthority())
 	{
 		OnActorBeginOverlap.AddDynamic(this, &ASMProjectile::OnBeginOverlap);
@@ -93,4 +103,5 @@ void ASMProjectile::OnHit(AActor* SelfActor, AActor* OtherActor, FVector NormalI
 	NET_LOG(LogSMProjectile, Log, TEXT("벽 충돌"))
 	Destroy();
 }
+
 void ASMProjectile::OnBeginOverlap(AActor* OverlappedActor, AActor* OtherActor) {}
