@@ -10,6 +10,7 @@
 #include "Interface/SMTeamComponentInterface.h"
 #include "SMPlayerCharacter.generated.h"
 
+class USMSmashComponent;
 class USMPostureGaugeWidget;
 class UWidgetComponent;
 class USMCharacterAnimInstance;
@@ -353,4 +354,11 @@ protected:
 protected:
 	UPROPERTY(VisibleAnywhere, Category = "Team")
 	TObjectPtr<USMTeamComponent> TeamComponent;
+// ~End of Team Section
+
+// ~Tile Flip Section
+protected:
+	UPROPERTY(VisibleAnywhere, Category = "Smash")
+	TObjectPtr<USMSmashComponent> SmashComponent;
+// ~End of Tile Flip Section
 };

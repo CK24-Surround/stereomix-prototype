@@ -30,9 +30,9 @@ protected:
 
 // ~TeamNumber Section
 public:
-	FORCEINLINE ETeam GetCurrentTeam() const { return CurrentTeam; }
+	FORCEINLINE ESMTeam GetCurrentTeam() const { return CurrentTeam; }
 
-	void SetTeam(ETeam InTeam);
+	void SetTeam(ESMTeam InTeam);
 
 protected:
 	UFUNCTION()
@@ -42,6 +42,6 @@ protected:
 	ISMTeamComponentInterface* TeamComponentInterface;
 	
 	UPROPERTY(ReplicatedUsing = OnRep_CurrentTeam)
-	ETeam CurrentTeam;
+	ESMTeam CurrentTeam;
 // ~End of TeamNumber Section
 };

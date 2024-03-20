@@ -55,8 +55,8 @@ public:
 
 public:
 	UPROPERTY(EditDefaultsOnly, Category = "Material")
-	UMaterialInterface* FutureBassTeamMaterial;
+	TObjectPtr<UMaterialInterface> FutureBassTeamMaterial;
 	
 	UPROPERTY(EditDefaultsOnly, Category = "Material")
-	UMaterialInterface* RockTeamMaterial;
+	TObjectPtr<UMaterialInterface> RockTeamMaterial;
 };

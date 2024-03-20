@@ -36,7 +36,7 @@ void USMTeamComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out
 	DOREPLIFETIME(USMTeamComponent, CurrentTeam);
 }
 
-void USMTeamComponent::SetTeam(ETeam InTeam)
+void USMTeamComponent::SetTeam(ESMTeam InTeam)
 {
 	if (GetOwnerRole() == ROLE_Authority)
 	{
@@ -50,7 +50,7 @@ void USMTeamComponent::SetTeam(ETeam InTeam)
 
 void USMTeamComponent::OnRep_CurrentTeam()
 {
-	const FString TeamName = UEnum::GetValueAsString(TEXT("StereoMixPrototype.ETeam"), CurrentTeam);
+	const FString TeamName = UEnum::GetValueAsString(TEXT("StereoMixPrototype.ESMTeam"), CurrentTeam);
 	NET_COMP_LOG(LogSMTeamComponent, Warning, TEXT("%s로 팀 변경"), *TeamName);
 
 	if (GetOwnerRole() != ROLE_Authority)

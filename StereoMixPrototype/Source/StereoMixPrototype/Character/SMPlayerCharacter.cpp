@@ -3,17 +3,18 @@
 
 #include "SMPlayerCharacter.h"
 
+#include "Data/SMTeam.h"
 #include "EngineUtils.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "SMCharacterAssetData.h"
+#include "SMSmashComponent.h"
 #include "SMTeamComponent.h"
 #include "Animation/SMCharacterAnimInstance.h"
 #include "Camera/CameraComponent.h"
 #include "CharacterStat/SMCharacterStatComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/WidgetComponent.h"
-#include "Data/SMTeam.h"
 #include "Design/SMPlayerCharacterDesignData.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/GameStateBase.h"
@@ -57,6 +58,7 @@ ASMPlayerCharacter::ASMPlayerCharacter()
 	}
 
 	TeamComponent = CreateDefaultSubobject<USMTeamComponent>(TEXT("Team"));
+	SmashComponent = CreateDefaultSubobject<USMSmashComponent>(TEXT("Smash"));
 
 	InitCamera();
 
@@ -875,6 +877,8 @@ void ASMPlayerCharacter::ServerRPCDetachToCaster_Implementation(FVector_NetQuant
 		CaughtCharacter->SetActorLocation(InLocation);
 		CaughtCharacter->ClientRPCSetRotation(InRotation);
 
+		CaughtCharacter->SmashComponent->TriggerTile(TeamComponent->GetCurrentTeam());
+		
 		SetCaughtCharacter(nullptr);
 	}
 }
@@ -1000,11 +1004,11 @@ void ASMPlayerCharacter::ResetTeamMaterial()
 
 	switch (TeamComponent->GetCurrentTeam())
 	{
-		case ETeam::None:
+		case ESMTeam::None:
 		{
 			break;
 		}
-		case ETeam::FutureBass:
+		case ESMTeam::FutureBass:
 		{
 			for (int32 i = 0; i < TotalMaterialCount; ++i)
 			{
@@ -1013,13 +1017,13 @@ void ASMPlayerCharacter::ResetTeamMaterial()
 
 			break;
 		}
-		case ETeam::Rock:
+		case ESMTeam::Rock:
 		{
 			for (int32 i = 0; i < TotalMaterialCount; ++i)
 			{
 				GetMesh()->SetMaterial(i, AssetData->RockTeamMaterial);
 			}
-			
+
 			break;
 		}
 	}
@@ -1027,10 +1031,10 @@ void ASMPlayerCharacter::ResetTeamMaterial()
 
 void ASMPlayerCharacter::ServerRPCFutureBassTeamSelect_Implementation()
 {
-	TeamComponent->SetTeam(ETeam::FutureBass);
+	TeamComponent->SetTeam(ESMTeam::FutureBass);
 }
 
 void ASMPlayerCharacter::ServerRPCRockTeamSelect_Implementation()
 {
-	TeamComponent->SetTeam(ETeam::Rock);
+	TeamComponent->SetTeam(ESMTeam::Rock);
 }
