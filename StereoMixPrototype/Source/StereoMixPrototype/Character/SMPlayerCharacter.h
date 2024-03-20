@@ -7,6 +7,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Interface/SMCharacterAnimationInterface.h"
 #include "Interface/SMProjectileInterface.h"
+#include "Interface/SMTeamComponentInterface.h"
 #include "SMPlayerCharacter.generated.h"
 
 class USMPostureGaugeWidget;
@@ -34,7 +35,8 @@ enum class EPlayerCharacterState : uint8
  * 
  */
 UCLASS()
-class STEREOMIXPROTOTYPE_API ASMPlayerCharacter : public ASMCharacterBase, public ISMCharacterAnimationInterface, public ISMProjectileInterface
+class STEREOMIXPROTOTYPE_API ASMPlayerCharacter : public ASMCharacterBase,
+                                                  public ISMCharacterAnimationInterface, public ISMProjectileInterface, public ISMTeamComponentInterface
 {
 	GENERATED_BODY()
 
@@ -97,10 +99,6 @@ protected:
 
 public:
 	virtual void Tick(float DeltaSeconds) override;
-
-// ~Design Section
-protected:
-// ~End of Design Section
 
 // ~Camera Section
 protected:
@@ -339,4 +337,20 @@ protected:
 	UPROPERTY()
 	TObjectPtr<USMPostureGaugeWidget> PostureGaugeWidget;
 // ~End of UI Section
+
+// ~Team Section
+public:
+	FORCEINLINE virtual USMTeamComponent* GetTeamComponent() override { return TeamComponent; }
+	virtual void ResetTeamMaterial() override;
+
+protected:
+	UFUNCTION(Server, Reliable)
+	void ServerRPCFutureBassTeamSelect();
+
+	UFUNCTION(Server, Reliable)
+	void ServerRPCRockTeamSelect();
+
+protected:
+	UPROPERTY(VisibleAnywhere, Category = "Team")
+	TObjectPtr<USMTeamComponent> TeamComponent;
 };

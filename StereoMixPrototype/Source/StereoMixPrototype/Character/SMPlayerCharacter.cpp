@@ -7,11 +7,13 @@
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "SMCharacterAssetData.h"
+#include "SMTeamComponent.h"
 #include "Animation/SMCharacterAnimInstance.h"
 #include "Camera/CameraComponent.h"
 #include "CharacterStat/SMCharacterStatComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/WidgetComponent.h"
+#include "Data/SMTeam.h"
 #include "Design/SMPlayerCharacterDesignData.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/GameStateBase.h"
@@ -53,6 +55,8 @@ ASMPlayerCharacter::ASMPlayerCharacter()
 	{
 		PostureGauge->SetWidgetClass(AssetData->PostureGauge);
 	}
+
+	TeamComponent = CreateDefaultSubobject<USMTeamComponent>(TEXT("Team"));
 
 	InitCamera();
 
@@ -103,6 +107,9 @@ void ASMPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputC
 		EnhancedInputComponent->BindAction(AssetData->HoldAction, ETriggerEvent::Started, this, &ASMPlayerCharacter::Catch);
 		EnhancedInputComponent->BindAction(AssetData->SmashAction, ETriggerEvent::Started, this, &ASMPlayerCharacter::Smash);
 		EnhancedInputComponent->BindAction(AssetData->RangedAttackAction, ETriggerEvent::Triggered, this, &ASMPlayerCharacter::RangedAttack);
+
+		EnhancedInputComponent->BindAction(AssetData->FutureBaseTeamSelectAction, ETriggerEvent::Started, this, &ASMPlayerCharacter::ServerRPCFutureBassTeamSelect);
+		EnhancedInputComponent->BindAction(AssetData->RockTeamSelectAction, ETriggerEvent::Started, this, &ASMPlayerCharacter::ServerRPCRockTeamSelect);
 	}
 }
 
@@ -985,4 +992,45 @@ void ASMPlayerCharacter::HitProjectile()
 		Stat->AddCurrentPostureGauge(25.0f);
 		NET_LOG(LogSMCharacter, Log, TEXT("현재 체간 게이지 %f / %f"), Stat->GetCurrentPostureGauge(), Stat->GetBaseStat().MaxPostureGauge);
 	}
+}
+
+void ASMPlayerCharacter::ResetTeamMaterial()
+{
+	const int32 TotalMaterialCount = GetMesh()->GetNumMaterials();
+
+	switch (TeamComponent->GetCurrentTeam())
+	{
+		case ETeam::None:
+		{
+			break;
+		}
+		case ETeam::FutureBass:
+		{
+			for (int32 i = 0; i < TotalMaterialCount; ++i)
+			{
+				GetMesh()->SetMaterial(i, AssetData->FutureBassTeamMaterial);
+			}
+
+			break;
+		}
+		case ETeam::Rock:
+		{
+			for (int32 i = 0; i < TotalMaterialCount; ++i)
+			{
+				GetMesh()->SetMaterial(i, AssetData->RockTeamMaterial);
+			}
+			
+			break;
+		}
+	}
+}
+
+void ASMPlayerCharacter::ServerRPCFutureBassTeamSelect_Implementation()
+{
+	TeamComponent->SetTeam(ETeam::FutureBass);
+}
+
+void ASMPlayerCharacter::ServerRPCRockTeamSelect_Implementation()
+{
+	TeamComponent->SetTeam(ETeam::Rock);
 }
