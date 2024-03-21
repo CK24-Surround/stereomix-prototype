@@ -3,14 +3,14 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "GameFramework/GameModeBase.h"
+#include "GameFramework/GameMode.h"
 #include "SMGameMode.generated.h"
 
 /**
  * 
  */
 UCLASS()
-class STEREOMIXPROTOTYPE_API ASMGameMode : public AGameModeBase
+class STEREOMIXPROTOTYPE_API ASMGameMode : public AGameMode
 {
 	GENERATED_BODY()
 };

@@ -11,6 +11,7 @@
 class USMTileAssetData;
 
 DECLARE_LOG_CATEGORY_CLASS(LogSMTile, Log, All);
+DECLARE_MULTICAST_DELEGATE_TwoParams(FOnChangeTile, ESMTeam /*PreviousTeam*/, ESMTeam /*InCurrentTeam*/)
 
 UCLASS()
 class STEREOMIXPROTOTYPE_API ASMTile : public AActor,
@@ -65,4 +66,7 @@ protected:
 protected:
 	UPROPERTY(ReplicatedUsing = OnRep_CurrentTeam)
 	ESMTeam CurrentTeam;
+
+public:
+	FOnChangeTile OnChangeTile;
 };

@@ -57,7 +57,13 @@ void ASMTile::TriggerTile(ESMTeam InTeam)
 
 	for (const auto& SelectedTile : SelectedTiles)
 	{
+		const ESMTeam PreviousTeam = SelectedTile->CurrentTeam;
 		SelectedTile->SetCurrentTeam(InTeam);
+		SelectedTile->OnChangeTile.Broadcast(PreviousTeam, InTeam);
+
+		// const FString PreviousTeamName = UEnum::GetValueAsString(TEXT("StereoMixPrototype.ESMTeam"), PreviousTeam);
+		// const FString CurrentTeamName = UEnum::GetValueAsString(TEXT("StereoMixPrototype.ESMTeam"), InTeam);
+		// NET_LOG(LogSMNetwork, Warning, TEXT("Prev: %s, Cur: %s"), *PreviousTeamName, *CurrentTeamName);
 	}
 }
 
