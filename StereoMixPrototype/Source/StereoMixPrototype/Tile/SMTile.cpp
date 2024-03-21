@@ -6,6 +6,7 @@
 #include "SMTileAssetData.h"
 #include "Data/AssetPath.h"
 #include "Log/SMLog.h"
+#include "Net/UnrealNetwork.h"
 #include "Physics/SMCollision.h"
 
 ASMTile::ASMTile()
@@ -40,24 +41,27 @@ void ASMTile::BeginPlay()
 	Super::BeginPlay();
 }
 
+void ASMTile::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+
+	DOREPLIFETIME(ASMTile, CurrentTeam);
+}
+
 void ASMTile::TriggerTile(ESMTeam InTeam)
 {
+	// 서버에서 호출됩니다. SmashComponent에서 호출됩니다.
+
 	NET_LOG(LogSMTile, Log, TEXT("트리거 된 타일: %s"), *GetName());
 	TArray<ASMTile*> SelectedTiles = SelectAdjacentTiles();
 
 	for (const auto& SelectedTile : SelectedTiles)
 	{
-		SelectedTile->TileChange(InTeam);
+		SelectedTile->SetCurrentTeam(InTeam);
 	}
 }
 
-void ASMTile::TileChange(ESMTeam InTeam)
-{
-	MulticastRPCTileColorChange(InTeam);
-	//TODO: 점수 처리 로직 필요
-}
-
-void ASMTile::MulticastRPCTileColorChange_Implementation(ESMTeam InTeam)
+void ASMTile::TileVisualChange(ESMTeam InTeam)
 {
 	switch (InTeam)
 	{
@@ -74,6 +78,8 @@ void ASMTile::MulticastRPCTileColorChange_Implementation(ESMTeam InTeam)
 			break;
 		}
 	}
+
+	//TODO: 점수 처리 로직 필요
 }
 
 TArray<ASMTile*> ASMTile::SelectAdjacentTiles()
@@ -99,4 +105,12 @@ TArray<ASMTile*> ASMTile::SelectAdjacentTiles()
 
 	DrawDebugBox(GetWorld(), Center, Box, FColor::Cyan, false, 2.0f);
 	return SelectedTiles;
+}
+
+void ASMTile::OnRep_CurrentTeam()
+{
+	if (!HasAuthority())
+	{
+		TileVisualChange(CurrentTeam);
+	}
 }

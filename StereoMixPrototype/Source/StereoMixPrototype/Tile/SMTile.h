@@ -25,12 +25,12 @@ protected:
 	virtual void BeginPlay() override;
 
 public:
-	virtual void TriggerTile(ESMTeam InTeam) override;
-	
-	void TileChange(ESMTeam InTeam);
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
-	UFUNCTION(NetMulticast, Reliable)
-	void MulticastRPCTileColorChange(ESMTeam InTeam);
+public:
+	virtual void TriggerTile(ESMTeam InTeam) override;
+
+	void TileVisualChange(ESMTeam InTeam);
 
 	TArray<ASMTile*> SelectAdjacentTiles();
 
@@ -47,4 +47,22 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, Category = "Tile")
 	TObjectPtr<UStaticMeshComponent> TileMesh;
+
+public:
+	FORCEINLINE void SetCurrentTeam(ESMTeam InTeam)
+	{
+		if (HasAuthority())
+		{
+			CurrentTeam = InTeam;
+			OnRep_CurrentTeam();
+		}
+	}
+
+protected:
+	UFUNCTION()
+	void OnRep_CurrentTeam();
+
+protected:
+	UPROPERTY(ReplicatedUsing = OnRep_CurrentTeam)
+	ESMTeam CurrentTeam;
 };

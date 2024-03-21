@@ -928,6 +928,7 @@ void ASMPlayerCharacter::RangedAttack()
 	if (bCanRangedAttack)
 	{
 		NET_LOG(LogSMCharacter, Log, TEXT("원거리 공격 시전"));
+		
 		bCanRangedAttack = false;
 
 		FTimerHandle TimerHandle;
