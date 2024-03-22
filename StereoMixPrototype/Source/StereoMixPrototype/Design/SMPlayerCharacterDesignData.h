@@ -39,5 +39,8 @@ public:
 	
 	UPROPERTY(EditDefaultsOnly, Category = "State", DisplayName = "매쳐진 후 기상까지 소요 시간")
 	float StandUpTime = 3.0f;
+
+	UPROPERTY(EditDefaultsOnly, Category = "State", DisplayName = "팀 잡기 허용")
+	uint32 bCanTeamCatch:1 = false;
 // ~End of State Section
 };

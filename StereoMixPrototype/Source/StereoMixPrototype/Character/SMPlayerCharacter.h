@@ -283,10 +283,10 @@ protected:
 	/** 애님 노티파이에 의해 호출됩니다. */
 	virtual void AnimNotify_Smash() override;
 
-	UFUNCTION(Server, Unreliable)
+	UFUNCTION(Server, Reliable)
 	void ServerRPCPlayKnockDownAnimation();
 
-	UFUNCTION(Client, Unreliable)
+	UFUNCTION(Client, Reliable)
 	void ClientRPCPlayKnockDownAnimation(ASMPlayerCharacter* InCharacterToAnimation);
 
 	UFUNCTION(Server, Reliable)
@@ -299,7 +299,7 @@ protected:
 	void ClientRPCSetRotation(FRotator InRotation);
 
 	/** 타이머 실행 이후(기상 시간) 기상 애니메이션을 재생시킵니다. */
-	UFUNCTION(NetMulticast, Unreliable)
+	UFUNCTION(NetMulticast, Reliable)
 	void MulticastRPCPlayStandUpAnimation();
 
 	/** 기상 애니메이션이 종료되고난 뒤에 호출됩니다. */

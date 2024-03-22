@@ -440,12 +440,12 @@ void ASMPlayerCharacter::MulticastRPCPlayStunEndAnimation_Implementation()
 
 void ASMPlayerCharacter::StunEnded(UAnimMontage* InAnimMontage, bool bInterrupted)
 {
-	if (bInterrupted)
+	if (bInterrupted || GetCurrentState() == EPlayerCharacterState::Caught)
 	{
-		NET_LOG(LogSMCharacter, Log, TEXT("기절 애니메이션 중단"));
+		NET_LOG(LogSMCharacter, Warning, TEXT("기절 애니메이션 중단"));
 		return;
 	}
-
+	
 	Stat->ClearPostureGauge();
 	SetStunned(false);
 	SetCurrentState(EPlayerCharacterState::Normal);
@@ -578,28 +578,32 @@ void ASMPlayerCharacter::AnimNotify_Catch()
 		// 나중에 기절 종료 애니메이션이 재생되는 중에 잡기가 성사되고, 서버지연으로인해 잡기가 먼저 처리 된 뒤 기절 종료 애니가 재생 마무리 될경우 버그를 방지하기 위해 서버측에서 유효하지 않은 상황이라면 롤백하는 검증 코드가 필요합니다.
 
 		// 충돌 로직
-		FHitResult HitResult;
+		TArray<FHitResult> HitResults;
 		const FVector Start = GetActorLocation();
 		const FVector End = Start + (GetActorForwardVector() * 300.0f);
 		FCollisionObjectQueryParams CollisionObjectQueryParams;
 		CollisionObjectQueryParams.AddObjectTypesToQuery(OC_STUNNED);
 		FCollisionQueryParams CollisionQueryParams(SCENE_QUERY_STAT(Catch), false, this);
-		bool bSuccess = GetWorld()->SweepSingleByObjectType(HitResult, Start, End, FQuat::Identity, CollisionObjectQueryParams, FCollisionShape::MakeSphere(50.0f), CollisionQueryParams);
+		bool bSuccess = GetWorld()->SweepMultiByObjectType(HitResults, Start, End, FQuat::Identity, CollisionObjectQueryParams, FCollisionShape::MakeSphere(50.0f), CollisionQueryParams);
 
 		// 충돌 시
 		if (bSuccess)
 		{
-			NET_LOG(LogSMCharacter, Log, TEXT("잡기 적중"));
-			ASMPlayerCharacter* HitPlayerCharacter = Cast<ASMPlayerCharacter>(HitResult.GetActor());
-			if (HitPlayerCharacter)
+			bSuccess = false;
+			for (const auto& HitResult : HitResults)
 			{
-				if (!HitPlayerCharacter->GetCaughtCharacter())
+				ASMPlayerCharacter* HitPlayerCharacter = Cast<ASMPlayerCharacter>(HitResult.GetActor());
+				if (!HitPlayerCharacter || HitPlayerCharacter->GetCaughtCharacter())
 				{
-					ServerRPCPerformPull(HitPlayerCharacter);
+					continue;
 				}
-				else
+
+				if (DesignData->bCanTeamCatch || TeamComponent->GetCurrentTeam() != HitPlayerCharacter->TeamComponent->GetCurrentTeam())
 				{
-					bSuccess = false;
+					NET_LOG(LogSMCharacter, Log, TEXT("잡기 적중"));
+					ServerRPCPerformPull(HitPlayerCharacter);
+
+					bSuccess = true;
 				}
 			}
 		}
@@ -736,6 +740,8 @@ void ASMPlayerCharacter::HandlePullEnd()
 		AttachToComponent(PullData.Caster->GetMesh(), FAttachmentTransformRules::SnapToTargetIncludingScale, TEXT("CatchSocket"));
 		StoredSMPlayerController->SetViewTargetWithBlend(PullData.Caster, 0.3f);
 
+		
+		StoredSMAnimInstance->Montage_Stop(0.0f);
 		for (const APlayerController* PlayerController : TActorRange<APlayerController>(GetWorld()))
 		{
 			if (!PlayerController || PlayerController->IsLocalController())
@@ -830,6 +836,7 @@ void ASMPlayerCharacter::ServerRPCPlayKnockDownAnimation_Implementation()
 
 	if (CaughtCharacter)
 	{
+		CaughtCharacter->SetCurrentState(EPlayerCharacterState::Down);
 		CaughtCharacter->StoredSMAnimInstance->PlayKnockDown();
 	}
 
@@ -878,7 +885,7 @@ void ASMPlayerCharacter::ServerRPCDetachToCaster_Implementation(FVector_NetQuant
 		CaughtCharacter->ClientRPCSetRotation(InRotation);
 
 		CaughtCharacter->SmashComponent->TriggerTile(TeamComponent->GetCurrentTeam());
-		
+
 		SetCaughtCharacter(nullptr);
 	}
 }
@@ -928,7 +935,7 @@ void ASMPlayerCharacter::RangedAttack()
 	if (bCanRangedAttack)
 	{
 		NET_LOG(LogSMCharacter, Log, TEXT("원거리 공격 시전"));
-		
+
 		bCanRangedAttack = false;
 
 		FTimerHandle TimerHandle;
