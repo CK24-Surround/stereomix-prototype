@@ -2,7 +2,7 @@
 
 #pragma once
 
-#define CP_PLAYER TEXT("Pawn")
+#define CP_PLAYER_HIT_BOX TEXT("PlayerHitBox")
 #define CP_AIM_PLANE TEXT("AimPlane")
 #define CP_KNOCK_DOWN TEXT("KnockDown")
 #define CP_PROJECTILE TEXT("Projectile")

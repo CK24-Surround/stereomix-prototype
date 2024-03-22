@@ -10,6 +10,7 @@
 #include "Interface/SMTeamComponentInterface.h"
 #include "SMPlayerCharacter.generated.h"
 
+class USphereComponent;
 class USMSmashComponent;
 class USMPostureGaugeWidget;
 class UWidgetComponent;
@@ -169,6 +170,9 @@ protected:
 	void StunEnded(UAnimMontage* InAnimMontage, bool bInterrupted);
 
 protected:
+	UPROPERTY(VisibleAnywhere, Category = "HitBox")
+	TObjectPtr<USphereComponent> HitBoxComponent; 
+	
 	FTimerHandle StunTimerHandle;
 // ~End of Character Section
 

@@ -14,6 +14,7 @@
 #include "Camera/CameraComponent.h"
 #include "CharacterStat/SMCharacterStatComponent.h"
 #include "Components/CapsuleComponent.h"
+#include "Components/SphereComponent.h"
 #include "Components/WidgetComponent.h"
 #include "Design/SMPlayerCharacterDesignData.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -59,6 +60,9 @@ ASMPlayerCharacter::ASMPlayerCharacter()
 
 	TeamComponent = CreateDefaultSubobject<USMTeamComponent>(TEXT("Team"));
 	SmashComponent = CreateDefaultSubobject<USMSmashComponent>(TEXT("Smash"));
+	HitBoxComponent = CreateDefaultSubobject<USphereComponent>(TEXT("HitBox"));
+	HitBoxComponent->SetupAttachment(GetRootComponent());
+	HitBoxComponent->SetCollisionProfileName(CP_PLAYER_HIT_BOX);
 
 	InitCamera();
 
@@ -66,7 +70,7 @@ ASMPlayerCharacter::ASMPlayerCharacter()
 	bEnableCollision = true;
 	bEnableMovement = true;
 	bCanControl = true;
-	CollisionProfileName = CP_PLAYER;
+	CollisionProfileName = CP_PLAYER_HIT_BOX;
 	bIsStunned = false;
 }
 
@@ -215,7 +219,7 @@ void ASMPlayerCharacter::OnRep_bEnableCollision()
 void ASMPlayerCharacter::OnRep_CollisionProfileName()
 {
 	NET_LOG(LogSMCharacter, Log, TEXT("콜리전 프로파일: %s"), *CollisionProfileName.ToString())
-	GetCapsuleComponent()->SetCollisionProfileName(CollisionProfileName);
+	HitBoxComponent->SetCollisionProfileName(CollisionProfileName);
 }
 
 void ASMPlayerCharacter::BeginPlay()
@@ -458,7 +462,7 @@ void ASMPlayerCharacter::StunEnded(UAnimMontage* InAnimMontage, bool bInterrupte
 		NET_LOG(LogSMCharacter, Warning, TEXT("기절 애니메이션 중단"));
 		return;
 	}
-	
+
 	Stat->ClearPostureGauge();
 	SetStunned(false);
 	SetCurrentState(EPlayerCharacterState::Normal);
@@ -468,7 +472,7 @@ void ASMPlayerCharacter::OnRep_bIsStunned()
 {
 	NET_LOG(LogSMCharacter, Log, TEXT("스턴 상태: %s"), bIsStunned ? TEXT("활성화") : TEXT("비활성화"));
 	SetCanControl(!bIsStunned);
-	bIsStunned ? SetCollisionProfileName(CP_STUNNED) : SetCollisionProfileName(CP_PLAYER);
+	bIsStunned ? SetCollisionProfileName(CP_STUNNED) : SetCollisionProfileName(CP_PLAYER_HIT_BOX);
 }
 
 void ASMPlayerCharacter::SetCanControl(bool bInEnableControl)
@@ -581,7 +585,10 @@ void ASMPlayerCharacter::ServerRPCPlayCatchAnimation_Implementation()
 
 void ASMPlayerCharacter::ClientRPCPlayCatchAnimation_Implementation(const ASMPlayerCharacter* InPlayAnimationCharacter) const
 {
-	InPlayAnimationCharacter->StoredSMAnimInstance->PlayCatch();
+	if (InPlayAnimationCharacter)
+	{
+		InPlayAnimationCharacter->StoredSMAnimInstance->PlayCatch();
+	}
 }
 
 void ASMPlayerCharacter::AnimNotify_Catch()
@@ -622,19 +629,22 @@ void ASMPlayerCharacter::AnimNotify_Catch()
 				}
 			}
 
-			ASMPlayerCharacter* ClosestCharacterToMouse = nullptr;
-			float ClosestCharacterToMouseDistance = FLT_MAX;
-			for (const auto& CanCatchCharacter : CanCatchCharacters)
+			if (bSuccess)
 			{
-				const float Distance = FVector::DistSquared(CatchLocation, CanCatchCharacter->GetActorLocation());
-				if (ClosestCharacterToMouseDistance > Distance)
+				ASMPlayerCharacter* ClosestCharacterToMouse = nullptr;
+				float ClosestCharacterToMouseDistance = FLT_MAX;
+				for (const auto& CanCatchCharacter : CanCatchCharacters)
 				{
-					ClosestCharacterToMouseDistance = Distance;
-					ClosestCharacterToMouse = CanCatchCharacter;
+					const float Distance = FVector::DistSquared(CatchLocation, CanCatchCharacter->GetActorLocation());
+					if (ClosestCharacterToMouseDistance > Distance)
+					{
+						ClosestCharacterToMouseDistance = Distance;
+						ClosestCharacterToMouse = CanCatchCharacter;
+					}
 				}
-			}
 
-			ServerRPCPerformPull(ClosestCharacterToMouse);
+				ServerRPCPerformPull(ClosestCharacterToMouse);
+			}
 		}
 
 		// 디버거
@@ -769,7 +779,6 @@ void ASMPlayerCharacter::HandlePullEnd()
 		AttachToComponent(PullData.Caster->GetMesh(), FAttachmentTransformRules::SnapToTargetIncludingScale, TEXT("CatchSocket"));
 		StoredSMPlayerController->SetViewTargetWithBlend(PullData.Caster, 0.3f);
 
-		
 		StoredSMAnimInstance->Montage_Stop(0.0f);
 		for (const APlayerController* PlayerController : TActorRange<APlayerController>(GetWorld()))
 		{
@@ -949,7 +958,7 @@ void ASMPlayerCharacter::StandUpEnded(UAnimMontage* PlayAnimMontage, bool bInter
 		NET_LOG(LogSMCharacter, Log, TEXT("기상 애니메이션 종료"));
 		Stat->ClearPostureGauge();
 		SetCurrentState(EPlayerCharacterState::Normal);
-		SetCollisionProfileName(CP_PLAYER);
+		SetCollisionProfileName(CP_PLAYER_HIT_BOX);
 		SetCanControl(true);
 	}
 }
@@ -1030,7 +1039,7 @@ void ASMPlayerCharacter::HitProjectile()
 
 	if (CurrentState != EPlayerCharacterState::Smash)
 	{
-		Stat->AddCurrentPostureGauge(25.0f);
+		Stat->AddCurrentPostureGauge(DesignData->RangedAttackDamage);
 		NET_LOG(LogSMCharacter, Log, TEXT("현재 체간 게이지 %f / %f"), Stat->GetCurrentPostureGauge(), Stat->GetBaseStat().MaxPostureGauge);
 	}
 }

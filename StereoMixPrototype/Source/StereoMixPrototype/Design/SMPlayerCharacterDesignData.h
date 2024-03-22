@@ -16,13 +16,16 @@ class STEREOMIXPROTOTYPE_API USMPlayerCharacterDesignData : public UDataAsset
 
 // ~Attack Section
 public:
+	UPROPERTY(EditDefaultsOnly, Category = "Attack", DisplayName = "원거리 투사체 공격력")
+	float RangedAttackDamage = 12.5f;
+	
 	UPROPERTY(EditDefaultsOnly, Category = "Attack", DisplayName = "초당 원거리 공격속도")
 	float RangedAttackFiringRate = 1.5f;
 
-	UPROPERTY(EditDefaultsOnly, Category = "Attack", DisplayName = "원거리 공격 투사체 속도")
+	UPROPERTY(EditDefaultsOnly, Category = "Attack", DisplayName = "원거리 투사체 속도")
 	float RangedAttackProjectileSpeed = 3000.0f;
 
-	UPROPERTY(EditDefaultsOnly, Category = "Attack", DisplayName = "원거리 공격 사거리")
+	UPROPERTY(EditDefaultsOnly, Category = "Attack", DisplayName = "원거리 투사체 사거리")
 	float RangedAttackMaxDistance = 1500.0f;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Attack", DisplayName = "잡기 사거리")
