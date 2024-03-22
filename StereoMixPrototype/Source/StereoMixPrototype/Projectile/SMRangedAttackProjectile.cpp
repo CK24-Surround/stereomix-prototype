@@ -3,6 +3,7 @@
 
 #include "SMRangedAttackProjectile.h"
 
+#include "SMProjectileAssetData.h"
 #include "Design/SMPlayerCharacterDesignData.h"
 #include "GameFramework/ProjectileMovementComponent.h"
 #include "Interface/SMProjectileInterface.h"
@@ -30,15 +31,25 @@ void ASMRangedAttackProjectile::OnBeginOverlap(AActor* OverlappedActor, AActor* 
 {
 	Super::OnBeginOverlap(OverlappedActor, OtherActor);
 
-	const ISMProjectileInterface* ProjectileInterface = Cast<ISMProjectileInterface>(OtherActor);
-	if (ProjectileInterface)
+	const ISMProjectileInterface* OtherActorProjectileInterface = Cast<ISMProjectileInterface>(OtherActor);
+	if (OtherActorProjectileInterface)
 	{
-		// 자기 자신이 발사한 투사체는 무시합니다.
-		if (OwningPawn == OtherActor)
+		// 같은 팀은 무시합니다.
+		const ISMProjectileInterface* OwningActorProjectileInterface = Cast<ISMProjectileInterface>(OwningPawn);
+		if (OwningActorProjectileInterface)
 		{
-			return;
+			// 만약 아무 팀도 선택되지 않은 캐릭터는 모두가 무시합니다.
+			if ((OwningActorProjectileInterface->GetCurrentTeam() == ESMTeam::None) || (OtherActorProjectileInterface->GetCurrentTeam() == ESMTeam::None))
+			{
+				return;
+			}
+
+			if (OtherActorProjectileInterface->GetCurrentTeam() == OwningActorProjectileInterface->GetCurrentTeam())
+			{
+				return;
+			}
 		}
-		
+
 		if (OwningPawn && OwningPawn->IsLocallyControlled())
 		{
 			ServerRPCHitProjectile(OtherActor, GetActorLocation());
@@ -46,6 +57,34 @@ void ASMRangedAttackProjectile::OnBeginOverlap(AActor* OverlappedActor, AActor* 
 
 		SetActorEnableCollision(false);
 		SetActorHiddenInGame(true);
+	}
+}
+
+void ASMRangedAttackProjectile::OnRep_OwningPawn()
+{
+	Super::OnRep_OwningPawn();
+
+	if (!HasAuthority())
+	{
+		const ISMProjectileInterface* ProjectileInterface = Cast<ISMProjectileInterface>(OwningPawn);
+		if (ProjectileInterface)
+		{
+			switch (ProjectileInterface->GetCurrentTeam())
+			{
+				case ESMTeam::None:
+					break;
+				case ESMTeam::FutureBass:
+				{
+					MeshComponent->SetMaterial(0, AssetData->FutureBassTeamMaterial);
+					break;
+				}
+				case ESMTeam::Rock:
+				{
+					MeshComponent->SetMaterial(0, AssetData->RockTeamMaterial);
+					break;
+				}
+			}
+		}
 	}
 }
 
@@ -58,6 +97,6 @@ void ASMRangedAttackProjectile::ServerRPCHitProjectile_Implementation(AActor* Hi
 		NET_LOG(LogSMProjectile, Log, TEXT("서버와 클라이언트의 위치 차이: %f"), Distance);
 		ProjectileInterface->HitProjectile();
 	}
-	
+
 	Destroy();
 }

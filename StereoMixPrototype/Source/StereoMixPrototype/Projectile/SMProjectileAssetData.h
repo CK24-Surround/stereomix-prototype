@@ -17,4 +17,11 @@ class STEREOMIXPROTOTYPE_API USMProjectileAssetData : public UPrimaryDataAsset
 public:
 	UPROPERTY(EditDefaultsOnly, Category = "Mesh")
 	TObjectPtr<UStaticMesh> BaseMesh;
+
+public:
+	UPROPERTY(EditDefaultsOnly, Category = "Material")
+	TObjectPtr<UMaterialInterface> FutureBassTeamMaterial;
+	
+	UPROPERTY(EditDefaultsOnly, Category = "Material")
+	TObjectPtr<UMaterialInterface> RockTeamMaterial;
 };

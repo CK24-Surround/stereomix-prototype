@@ -65,7 +65,7 @@ public:
 
 protected:
 	UFUNCTION()
-	void OnRep_OwningPawn();
+	virtual void OnRep_OwningPawn();
 
 	UPROPERTY(ReplicatedUsing = OnRep_OwningPawn)
 	TObjectPtr<APawn> OwningPawn;

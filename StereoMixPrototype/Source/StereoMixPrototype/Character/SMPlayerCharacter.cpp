@@ -1030,6 +1030,11 @@ void ASMPlayerCharacter::ResetTeamMaterial()
 	}
 }
 
+ESMTeam ASMPlayerCharacter::GetCurrentTeam() const
+{
+	return TeamComponent->GetCurrentTeam();
+}
+
 void ASMPlayerCharacter::ServerRPCFutureBassTeamSelect_Implementation()
 {
 	TeamComponent->SetTeam(ESMTeam::FutureBass);

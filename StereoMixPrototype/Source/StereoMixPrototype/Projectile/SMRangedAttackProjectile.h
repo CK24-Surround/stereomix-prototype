@@ -26,6 +26,9 @@ protected:
 // ~End of Event Section
 
 protected:
+	virtual void OnRep_OwningPawn() override;
+
+protected:
 	UFUNCTION(Server, Reliable)
 	void ServerRPCHitProjectile(AActor* HitActor, FVector_NetQuantize10 InLocation);
 };

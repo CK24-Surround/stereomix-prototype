@@ -342,7 +342,10 @@ protected:
 // ~Team Section
 public:
 	FORCEINLINE virtual USMTeamComponent* GetTeamComponent() override { return TeamComponent; }
+	
 	virtual void ResetTeamMaterial() override;
+
+	virtual ESMTeam GetCurrentTeam() const override;
 
 protected:
 	UFUNCTION(Server, Reliable)
