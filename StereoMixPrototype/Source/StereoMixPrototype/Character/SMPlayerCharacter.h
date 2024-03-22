@@ -123,6 +123,10 @@ protected:
 
 	/** GetMousePointingDirection()를 통해 얻어낸 방향으로 캐릭터를 회전시킵니다. */
 	void UpdateRotateToMousePointer();
+
+	/** 현재 마우스 포인터의 위치를 반환합니다 */
+	FVector GetMouseCursorLocation();
+	
 // ~End of Input Section
 
 // ~Movement Section
@@ -264,6 +268,8 @@ protected:
 	TObjectPtr<ASMPlayerCharacter> CaughtCharacter;
 
 	uint32 bCanCatch:1 = true;
+
+	FVector CatchLocation;
 
 public: // Animation Interface Section
 	FORCEINLINE virtual bool GetHasAcceleration() override { return GetCharacterMovement()->GetCurrentAcceleration() != FVector::ZeroVector; }

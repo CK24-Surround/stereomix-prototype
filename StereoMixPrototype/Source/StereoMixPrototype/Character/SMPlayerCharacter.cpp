@@ -338,6 +338,19 @@ void ASMPlayerCharacter::UpdateRotateToMousePointer()
 	}
 }
 
+FVector ASMPlayerCharacter::GetMouseCursorLocation()
+{
+	FHitResult HitResult;
+	const bool Succeed = StoredSMPlayerController->GetHitResultUnderCursor(TC_AIM_PLANE, false, HitResult);
+	if (Succeed)
+	{
+		const FVector MouseLocation = HitResult.Location;
+		return MouseLocation;
+	}
+
+	return FVector::ZeroVector;
+}
+
 void ASMPlayerCharacter::SetEnableMovement(bool bInEnableMovement)
 {
 	if (HasAuthority())
@@ -540,6 +553,8 @@ void ASMPlayerCharacter::Catch()
 		NET_LOG(LogSMCharacter, Log, TEXT("잡기 시전"));
 		bCanCatch = false;
 
+		CatchLocation = GetMouseCursorLocation();
+
 		FTimerHandle TimerHandle;
 		GetWorldTimerManager().SetTimer(TimerHandle, this, &ASMPlayerCharacter::CanCatch, DesignData->CatchCoolDownTime);
 
@@ -578,18 +593,18 @@ void ASMPlayerCharacter::AnimNotify_Catch()
 		// 나중에 기절 종료 애니메이션이 재생되는 중에 잡기가 성사되고, 서버지연으로인해 잡기가 먼저 처리 된 뒤 기절 종료 애니가 재생 마무리 될경우 버그를 방지하기 위해 서버측에서 유효하지 않은 상황이라면 롤백하는 검증 코드가 필요합니다.
 
 		// 충돌 로직
-		TArray<FHitResult> HitResults;
+		TArray<FOverlapResult> HitResults;
 		const FVector Start = GetActorLocation();
-		const FVector End = Start + (GetActorForwardVector() * 300.0f);
 		FCollisionObjectQueryParams CollisionObjectQueryParams;
 		CollisionObjectQueryParams.AddObjectTypesToQuery(OC_STUNNED);
 		FCollisionQueryParams CollisionQueryParams(SCENE_QUERY_STAT(Catch), false, this);
-		bool bSuccess = GetWorld()->SweepMultiByObjectType(HitResults, Start, End, FQuat::Identity, CollisionObjectQueryParams, FCollisionShape::MakeSphere(50.0f), CollisionQueryParams);
+		bool bSuccess = GetWorld()->OverlapMultiByObjectType(HitResults, Start, FQuat::Identity, CollisionObjectQueryParams, FCollisionShape::MakeSphere(DesignData->CatchMaxDistance), CollisionQueryParams);
 
 		// 충돌 시
 		if (bSuccess)
 		{
 			bSuccess = false;
+			TArray<ASMPlayerCharacter*> CanCatchCharacters;
 			for (const auto& HitResult : HitResults)
 			{
 				ASMPlayerCharacter* HitPlayerCharacter = Cast<ASMPlayerCharacter>(HitResult.GetActor());
@@ -601,17 +616,31 @@ void ASMPlayerCharacter::AnimNotify_Catch()
 				if (DesignData->bCanTeamCatch || TeamComponent->GetCurrentTeam() != HitPlayerCharacter->TeamComponent->GetCurrentTeam())
 				{
 					NET_LOG(LogSMCharacter, Log, TEXT("잡기 적중"));
-					ServerRPCPerformPull(HitPlayerCharacter);
+					CanCatchCharacters.Add(HitPlayerCharacter);
 
 					bSuccess = true;
 				}
 			}
+
+			ASMPlayerCharacter* ClosestCharacterToMouse = nullptr;
+			float ClosestCharacterToMouseDistance = FLT_MAX;
+			for (const auto& CanCatchCharacter : CanCatchCharacters)
+			{
+				const float Distance = FVector::DistSquared(CatchLocation, CanCatchCharacter->GetActorLocation());
+				if (ClosestCharacterToMouseDistance > Distance)
+				{
+					ClosestCharacterToMouseDistance = Distance;
+					ClosestCharacterToMouse = CanCatchCharacter;
+				}
+			}
+
+			ServerRPCPerformPull(ClosestCharacterToMouse);
 		}
 
 		// 디버거
-		const FVector Center = Start + (End - Start) * 0.5f;
+		const FVector Center = Start;
 		const FColor DrawColor = bSuccess ? FColor::Green : FColor::Red;
-		DrawDebugCapsule(GetWorld(), Center, 150.0f, 50.0f, FRotationMatrix::MakeFromZ(GetActorForwardVector()).ToQuat(), DrawColor, false, 1.0f);
+		DrawDebugSphere(GetWorld(), Center, DesignData->CatchMaxDistance, 16, DrawColor, false, 1.0f);
 	}
 }
 

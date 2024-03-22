@@ -25,6 +25,9 @@ public:
 	UPROPERTY(EditDefaultsOnly, Category = "Attack", DisplayName = "원거리 공격 사거리")
 	float RangedAttackMaxDistance = 1500.0f;
 
+	UPROPERTY(EditDefaultsOnly, Category = "Attack", DisplayName = "잡기 사거리")
+	float CatchMaxDistance = 400.0f;
+
 	UPROPERTY(EditDefaultsOnly, Category = "Attack" , DisplayName = "잡기 쿨타임")
 	float CatchCoolDownTime = 3.0f;
 // ~End of Attack Section
