@@ -60,4 +60,29 @@ public:
 	
 	UPROPERTY(EditDefaultsOnly, Category = "Material")
 	TObjectPtr<UMaterialInterface> RockTeamMaterial;
+
+public:
+	UPROPERTY(EditDefaultsOnly, Category = "Effect")
+	TObjectPtr<UNiagaraSystem> JumpEffect;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Effect")
+	TObjectPtr<UNiagaraSystem> ProjectileHitEffect;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Effect")
+	TObjectPtr<UNiagaraSystem> StunHitEffect;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Effect")
+	TObjectPtr<UNiagaraSystem> GrabEffect;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Effect")
+	TObjectPtr<UNiagaraSystem> MoveTrailEffect;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Effect")
+	TObjectPtr<UNiagaraSystem> CatchMoveTrailEffect;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Effect")
+	TObjectPtr<UNiagaraSystem> StunLoopEffect;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Effect")
+	TObjectPtr<UNiagaraSystem> StunEndEffect;
 };

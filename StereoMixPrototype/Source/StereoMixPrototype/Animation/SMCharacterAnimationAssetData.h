@@ -6,6 +6,7 @@
 #include "Engine/DataAsset.h"
 #include "SMCharacterAnimationAssetData.generated.h"
 
+class UNiagaraSystem;
 /**
  * 
  */

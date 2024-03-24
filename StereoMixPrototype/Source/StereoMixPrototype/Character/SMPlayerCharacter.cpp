@@ -7,6 +7,7 @@
 #include "EngineUtils.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
+#include "NiagaraFunctionLibrary.h"
 #include "SMCharacterAssetData.h"
 #include "SMSmashComponent.h"
 #include "SMTeamComponent.h"
@@ -109,7 +110,9 @@ void ASMPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputC
 	if (EnhancedInputComponent)
 	{
 		EnhancedInputComponent->BindAction(AssetData->MoveAction, ETriggerEvent::Triggered, this, &ASMPlayerCharacter::Move);
-		EnhancedInputComponent->BindAction(AssetData->JumpAction, ETriggerEvent::Triggered, this, &ASMPlayerCharacter::Jump);
+
+		// 점프는 폐기예정
+		// EnhancedInputComponent->BindAction(AssetData->JumpAction, ETriggerEvent::Triggered, this, &ASMPlayerCharacter::Jump);
 		EnhancedInputComponent->BindAction(AssetData->HoldAction, ETriggerEvent::Started, this, &ASMPlayerCharacter::Catch);
 		EnhancedInputComponent->BindAction(AssetData->SmashAction, ETriggerEvent::Started, this, &ASMPlayerCharacter::Smash);
 		EnhancedInputComponent->BindAction(AssetData->RangedAttackAction, ETriggerEvent::Triggered, this, &ASMPlayerCharacter::RangedAttack);
@@ -1041,6 +1044,21 @@ void ASMPlayerCharacter::HitProjectile()
 	{
 		Stat->AddCurrentPostureGauge(DesignData->RangedAttackDamage);
 		NET_LOG(LogSMCharacter, Log, TEXT("현재 체간 게이지 %f / %f"), Stat->GetCurrentPostureGauge(), Stat->GetBaseStat().MaxPostureGauge);
+	}
+
+	MulticastRPCPlayProjectileHitEffect(this);
+}
+
+void ASMPlayerCharacter::MulticastRPCPlayProjectileHitEffect_Implementation(ASMPlayerCharacter* CharacterToPlayEffect)
+{
+	if (HasAuthority())
+	{
+		return;
+	}
+
+	if (CharacterToPlayEffect)
+	{
+		UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), AssetData->ProjectileHitEffect, CharacterToPlayEffect->GetActorLocation());
 	}
 }
 

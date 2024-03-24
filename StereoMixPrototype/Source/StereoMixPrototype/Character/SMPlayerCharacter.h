@@ -336,6 +336,9 @@ protected:
 	/** 투사체에 적중당하면 서버측에서 호출됩니다. */
 	virtual void HitProjectile() override;
 
+	UFUNCTION(NetMulticast, Unreliable)
+	void MulticastRPCPlayProjectileHitEffect(ASMPlayerCharacter* CharacterToPlayEffect);
+
 protected:
 	uint32 bCanRangedAttack:1 = true;
 // ~End of Ranged Attack Section
