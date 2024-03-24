@@ -3,6 +3,7 @@
 
 #include "SMRangedAttackProjectile.h"
 
+#include "NiagaraFunctionLibrary.h"
 #include "SMProjectileAssetData.h"
 #include "Design/SMPlayerCharacterDesignData.h"
 #include "GameFramework/ProjectileMovementComponent.h"
@@ -50,6 +51,7 @@ void ASMRangedAttackProjectile::OnBeginOverlap(AActor* OverlappedActor, AActor* 
 			}
 		}
 
+		// 서버가 아닌 투사체를 발사한 클라이언트에서 충돌 판정 계산하고 이를 사용하기 위한 코드입니다.
 		if (OwningPawn && OwningPawn->IsLocallyControlled())
 		{
 			ServerRPCHitProjectile(OtherActor, GetActorLocation());

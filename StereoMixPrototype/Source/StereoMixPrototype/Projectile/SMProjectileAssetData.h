@@ -6,6 +6,8 @@
 #include "Engine/DataAsset.h"
 #include "SMProjectileAssetData.generated.h"
 
+class UNiagaraSystem;
+
 /**
  * 
  */

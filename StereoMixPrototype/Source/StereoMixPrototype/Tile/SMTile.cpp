@@ -80,7 +80,6 @@ void ASMTile::PlaySmashEffect_Implementation(ASMTile* TileToPlayEffect)
 {
 	if (!HasAuthority())
 	{
-		NET_LOG(LogSMTile, Warning, TEXT("스매시 이펙트 재생"))
 		SmashEffectComponent->ActivateSystem();
 	}
 }
@@ -102,8 +101,6 @@ void ASMTile::TileVisualChange(ESMTeam InTeam)
 			break;
 		}
 	}
-
-	//TODO: 점수 처리 로직 필요
 }
 
 TArray<ASMTile*> ASMTile::SelectAdjacentTiles()

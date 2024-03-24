@@ -351,7 +351,7 @@ protected:
 	virtual void HitProjectile() override;
 
 	UFUNCTION(NetMulticast, Unreliable)
-	void MulticastRPCPlayProjectileHitEffect(ASMPlayerCharacter* CharacterToPlayEffect);
+	void MulticastRPCPlayProjectileHitVisualEffect(ASMPlayerCharacter* NeedPlayingCharacter);
 
 protected:
 	uint32 bCanRangedAttack:1 = true;

@@ -71,7 +71,8 @@ ASMPlayerCharacter::ASMPlayerCharacter()
 	StunEffectComponent->SetAutoActivate(false);
 
 	MoveTrailEffectComponent = CreateDefaultSubobject<UNiagaraComponent>(TEXT("MoveTrailEffect"));
-	MoveTrailEffectComponent->SetupAttachment(GetRootComponent());
+	MoveTrailEffectComponent->SetupAttachment(GetMesh());
+	MoveTrailEffectComponent->SetRelativeLocation(FVector(0.0, 0.0, 80.0));
 	MoveTrailEffectComponent->SetAsset(AssetData->MoveTrailEffect);
 
 	InitCamera();
@@ -479,7 +480,7 @@ void ASMPlayerCharacter::StunEnded(UAnimMontage* InAnimMontage, bool bInterrupte
 {
 	if (bInterrupted || GetCurrentState() == EPlayerCharacterState::Caught)
 	{
-		NET_LOG(LogSMCharacter, Warning, TEXT("기절 애니메이션 중단"));
+		NET_LOG(LogSMCharacter, Log, TEXT("기절 애니메이션 중단"));
 		return;
 	}
 
@@ -723,7 +724,6 @@ void ASMPlayerCharacter::ClientRPCPlayCaughtVisualEffect_Implementation(ASMPlaye
 {
 	if (NeedPlayingClient)
 	{
-		NET_LOG(LogSMCharacter, Warning, TEXT("잡히기 비주얼 이펙트 재생"));
 		NeedPlayingClient->StunEffectComponent->DeactivateImmediate();
 	}
 }
@@ -1094,19 +1094,14 @@ void ASMPlayerCharacter::HitProjectile()
 		NET_LOG(LogSMCharacter, Log, TEXT("현재 체간 게이지 %f / %f"), Stat->GetCurrentPostureGauge(), Stat->GetBaseStat().MaxPostureGauge);
 	}
 
-	MulticastRPCPlayProjectileHitEffect(this);
+	MulticastRPCPlayProjectileHitVisualEffect(this);
 }
 
-void ASMPlayerCharacter::MulticastRPCPlayProjectileHitEffect_Implementation(ASMPlayerCharacter* CharacterToPlayEffect)
+void ASMPlayerCharacter::MulticastRPCPlayProjectileHitVisualEffect_Implementation(ASMPlayerCharacter* NeedPlayingCharacter)
 {
-	if (HasAuthority())
+	if (NeedPlayingCharacter)
 	{
-		return;
-	}
-
-	if (CharacterToPlayEffect)
-	{
-		UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), AssetData->ProjectileHitEffect, CharacterToPlayEffect->GetActorLocation());
+		UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), AssetData->ProjectileHitEffect, NeedPlayingCharacter->GetActorLocation());
 	}
 }
 

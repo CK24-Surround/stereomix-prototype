@@ -51,7 +51,7 @@ void USMTeamComponent::SetTeam(ESMTeam InTeam)
 void USMTeamComponent::OnRep_CurrentTeam()
 {
 	const FString TeamName = UEnum::GetValueAsString(TEXT("StereoMixPrototype.ESMTeam"), CurrentTeam);
-	NET_COMP_LOG(LogSMTeamComponent, Warning, TEXT("%s로 팀 변경"), *TeamName);
+	NET_COMP_LOG(LogSMTeamComponent, Log, TEXT("%s로 팀 변경"), *TeamName);
 
 	if (GetOwnerRole() != ROLE_Authority)
 	{
