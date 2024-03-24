@@ -10,6 +10,7 @@
 #include "Interface/SMTeamComponentInterface.h"
 #include "SMPlayerCharacter.generated.h"
 
+class UNiagaraComponent;
 class USphereComponent;
 class USMSmashComponent;
 class USMPostureGaugeWidget;
@@ -136,6 +137,10 @@ public:
 
 protected:
 	void Move(const FInputActionValue& InputActionValue);
+
+protected:
+	UPROPERTY()
+	TObjectPtr<UNiagaraComponent> MoveTrailEffectComponent;
 // ~End of Movement Section
 
 // ~Character State Section
@@ -159,7 +164,7 @@ protected:
 	void ApplyStunned();
 
 	UFUNCTION(NetMulticast, Unreliable)
-	void MulticastRPCPlayStunAnimation();
+	void MulticastRPCPlayStunVisualEffect();
 
 	/** 서버에서 실행됩니다.*/
 	void RecoverStunned();
@@ -169,9 +174,15 @@ protected:
 
 	void StunEnded(UAnimMontage* InAnimMontage, bool bInterrupted);
 
+	UFUNCTION(NetMulticast, Unreliable)
+	void MulticastRPCPlayStunEndedVisualEffect();
+
 protected:
 	UPROPERTY(VisibleAnywhere, Category = "HitBox")
-	TObjectPtr<USphereComponent> HitBoxComponent; 
+	TObjectPtr<USphereComponent> HitBoxComponent;
+
+	UPROPERTY(VisibleAnywhere, Category = "Effect")
+	TObjectPtr<UNiagaraComponent> StunEffectComponent; 
 	
 	FTimerHandle StunTimerHandle;
 // ~End of Character Section
@@ -247,6 +258,9 @@ protected:
 	UFUNCTION(Server, Reliable)
 	void ServerRPCPerformPull(ASMPlayerCharacter* InTargetCharacter);
 
+	UFUNCTION(Client, Unreliable)
+	void ClientRPCPlayCaughtVisualEffect(ASMPlayerCharacter* NeedPlayingClient) const;
+
 	UFUNCTION(Client, Reliable)
 	void ClientRPCLastTimeCheck();
 
@@ -310,7 +324,7 @@ protected:
 
 	/** 타이머 실행 이후(기상 시간) 기상 애니메이션을 재생시킵니다. */
 	UFUNCTION(NetMulticast, Reliable)
-	void MulticastRPCPlayStandUpAnimation();
+	void MulticastRPCPlayStandUpVisualEffect();
 
 	/** 기상 애니메이션이 종료되고난 뒤에 호출됩니다. */
 	void StandUpEnded(UAnimMontage* PlayAnimMontage, bool bInterrupted);

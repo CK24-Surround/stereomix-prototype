@@ -7,6 +7,7 @@
 #include "EngineUtils.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
+#include "NiagaraComponent.h"
 #include "NiagaraFunctionLibrary.h"
 #include "SMCharacterAssetData.h"
 #include "SMSmashComponent.h"
@@ -64,6 +65,14 @@ ASMPlayerCharacter::ASMPlayerCharacter()
 	HitBoxComponent = CreateDefaultSubobject<USphereComponent>(TEXT("HitBox"));
 	HitBoxComponent->SetupAttachment(GetRootComponent());
 	HitBoxComponent->SetCollisionProfileName(CP_PLAYER_HIT_BOX);
+
+	StunEffectComponent = CreateDefaultSubobject<UNiagaraComponent>(TEXT("StunEffect"));
+	StunEffectComponent->SetupAttachment(GetRootComponent());
+	StunEffectComponent->SetAutoActivate(false);
+
+	MoveTrailEffectComponent = CreateDefaultSubobject<UNiagaraComponent>(TEXT("MoveTrailEffect"));
+	MoveTrailEffectComponent->SetupAttachment(GetRootComponent());
+	MoveTrailEffectComponent->SetAsset(AssetData->MoveTrailEffect);
 
 	InitCamera();
 
@@ -259,6 +268,11 @@ void ASMPlayerCharacter::Tick(float DeltaSeconds)
 	if (bCanControl)
 	{
 		UpdateRotateToMousePointer();
+
+		FVector MoveDirection = GetCharacterMovement()->Velocity.GetSafeNormal();
+		MoveDirection.Z = 0.0f;
+		const FRotator MoveDirectionRotation = FRotationMatrix::MakeFromX(MoveDirection).Rotator();
+		MoveTrailEffectComponent->SetWorldRotation(MoveDirectionRotation);
 	}
 
 	if (PullData.bIsPulling)
@@ -427,16 +441,19 @@ void ASMPlayerCharacter::ApplyStunned()
 	SetCurrentState(EPlayerCharacterState::Stun);
 
 	StoredSMAnimInstance->PlayStun();
-	MulticastRPCPlayStunAnimation();
+	MulticastRPCPlayStunVisualEffect();
 	const float StunEndTime = DesignData->StunTime - StoredSMAnimInstance->GetStunEndLength();
 	GetWorldTimerManager().SetTimer(StunTimerHandle, this, &ASMPlayerCharacter::RecoverStunned, StunEndTime, false);
 }
 
-void ASMPlayerCharacter::MulticastRPCPlayStunAnimation_Implementation()
+void ASMPlayerCharacter::MulticastRPCPlayStunVisualEffect_Implementation()
 {
 	if (!HasAuthority())
 	{
 		StoredSMAnimInstance->PlayStun();
+
+		StunEffectComponent->SetAsset(AssetData->StunLoopEffect);
+		StunEffectComponent->ActivateSystem();
 	}
 }
 
@@ -469,6 +486,17 @@ void ASMPlayerCharacter::StunEnded(UAnimMontage* InAnimMontage, bool bInterrupte
 	Stat->ClearPostureGauge();
 	SetStunned(false);
 	SetCurrentState(EPlayerCharacterState::Normal);
+
+	MulticastRPCPlayStunEndedVisualEffect();
+}
+
+void ASMPlayerCharacter::MulticastRPCPlayStunEndedVisualEffect_Implementation()
+{
+	if (!HasAuthority())
+	{
+		StunEffectComponent->SetAsset(AssetData->StunEndEffect);
+		StunEffectComponent->ActivateSystem();
+	}
 }
 
 void ASMPlayerCharacter::OnRep_bIsStunned()
@@ -647,6 +675,8 @@ void ASMPlayerCharacter::AnimNotify_Catch()
 				}
 
 				ServerRPCPerformPull(ClosestCharacterToMouse);
+
+				ClosestCharacterToMouse->StunEffectComponent->DeactivateImmediate();
 			}
 		}
 
@@ -678,6 +708,24 @@ void ASMPlayerCharacter::ServerRPCPerformPull_Implementation(ASMPlayerCharacter*
 	InTargetCharacter->PullData.Caster = this;
 	InTargetCharacter->PullData.StartLocation = InTargetCharacter->GetActorLocation();
 	InTargetCharacter->ClientRPCLastTimeCheck();
+
+	// 클라이언트 RPC
+	for (const ASMPlayerCharacter* NeedPlayingClient : GetCharactersExcludingServerAndCaster())
+	{
+		if (NeedPlayingClient)
+		{
+			NeedPlayingClient->ClientRPCPlayCaughtVisualEffect(InTargetCharacter);
+		}
+	}
+}
+
+void ASMPlayerCharacter::ClientRPCPlayCaughtVisualEffect_Implementation(ASMPlayerCharacter* NeedPlayingClient) const
+{
+	if (NeedPlayingClient)
+	{
+		NET_LOG(LogSMCharacter, Warning, TEXT("잡히기 비주얼 이펙트 재생"));
+		NeedPlayingClient->StunEffectComponent->DeactivateImmediate();
+	}
 }
 
 void ASMPlayerCharacter::ClientRPCLastTimeCheck_Implementation()
@@ -908,7 +956,7 @@ void ASMPlayerCharacter::ServerRPCDetachToCaster_Implementation(FVector_NetQuant
 	if (CaughtCharacter)
 	{
 		FTimerHandle TimerHandle;
-		GetWorldTimerManager().SetTimer(TimerHandle, CaughtCharacter.Get(), &ASMPlayerCharacter::MulticastRPCPlayStandUpAnimation, DesignData->StandUpTime);
+		GetWorldTimerManager().SetTimer(TimerHandle, CaughtCharacter.Get(), &ASMPlayerCharacter::MulticastRPCPlayStandUpVisualEffect, DesignData->StandUpTime);
 
 		NET_LOG(LogSMCharacter, Log, TEXT("디태치"));
 		CaughtCharacter->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
@@ -949,7 +997,7 @@ void ASMPlayerCharacter::ClientRPCSetRotation_Implementation(FRotator InRotation
 	StoredSMPlayerController->SetControlRotation(InRotation);
 }
 
-void ASMPlayerCharacter::MulticastRPCPlayStandUpAnimation_Implementation()
+void ASMPlayerCharacter::MulticastRPCPlayStandUpVisualEffect_Implementation()
 {
 	StoredSMAnimInstance->PlayStandUp();
 }
