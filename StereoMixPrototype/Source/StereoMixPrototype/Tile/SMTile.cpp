@@ -3,6 +3,8 @@
 
 #include "SMTile.h"
 
+#include "NiagaraComponent.h"
+#include "NiagaraFunctionLibrary.h"
 #include "SMTileAssetData.h"
 #include "Data/AssetPath.h"
 #include "Log/SMLog.h"
@@ -32,6 +34,11 @@ ASMTile::ASMTile()
 	TileMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("TileMesh"));
 	TileMesh->SetupAttachment(FrameMesh);
 	TileMesh->SetCollisionProfileName(CP_TILE);
+
+	SmashEffectComponent = CreateDefaultSubobject<UNiagaraComponent>(TEXT("SmashEffect"));
+	SmashEffectComponent->SetupAttachment(TileMesh);
+	SmashEffectComponent->SetAsset(AssetData->SmashEffect);
+	SmashEffectComponent->SetAutoActivate(false);
 
 	bReplicates = true;
 }
@@ -64,6 +71,17 @@ void ASMTile::TriggerTile(ESMTeam InTeam)
 		// const FString PreviousTeamName = UEnum::GetValueAsString(TEXT("StereoMixPrototype.ESMTeam"), PreviousTeam);
 		// const FString CurrentTeamName = UEnum::GetValueAsString(TEXT("StereoMixPrototype.ESMTeam"), InTeam);
 		// NET_LOG(LogSMNetwork, Warning, TEXT("Prev: %s, Cur: %s"), *PreviousTeamName, *CurrentTeamName);
+	}
+
+	PlaySmashEffect(this);
+}
+
+void ASMTile::PlaySmashEffect_Implementation(ASMTile* TileToPlayEffect)
+{
+	if (!HasAuthority())
+	{
+		NET_LOG(LogSMTile, Warning, TEXT("스매시 이펙트 재생"))
+		SmashEffectComponent->ActivateSystem();
 	}
 }
 

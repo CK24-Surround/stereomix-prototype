@@ -6,6 +6,7 @@
 #include "Engine/DataAsset.h"
 #include "SMCharacterAssetData.generated.h"
 
+class UNiagaraSystem;
 class USMPostureGaugeWidget;
 class ASMRangedAttackProjectile;
 class UInputAction;

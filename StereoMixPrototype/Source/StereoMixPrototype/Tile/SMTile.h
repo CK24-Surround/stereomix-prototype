@@ -8,6 +8,7 @@
 #include "Interface/SMTileInterface.h"
 #include "SMTile.generated.h"
 
+class UNiagaraComponent;
 class USMTileAssetData;
 
 DECLARE_LOG_CATEGORY_CLASS(LogSMTile, Log, All);
@@ -30,6 +31,9 @@ public:
 
 public:
 	virtual void TriggerTile(ESMTeam InTeam) override;
+
+	UFUNCTION(NetMulticast, Unreliable)
+	void PlaySmashEffect(ASMTile* TileToPlayEffect);
 
 	void TileVisualChange(ESMTeam InTeam);
 
@@ -69,4 +73,11 @@ protected:
 
 public:
 	FOnChangeTile OnChangeTile;
+
+// ~Niagara System Section
+protected:
+	UPROPERTY(VisibleAnywhere, Category = "SmashEffect")
+	TObjectPtr<UNiagaraComponent> SmashEffectComponent;
+	
+// ~End of Niagara System Section
 };

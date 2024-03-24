@@ -6,6 +6,8 @@
 #include "Engine/DataAsset.h"
 #include "SMTileAssetData.generated.h"
 
+class UNiagaraSystem;
+
 /**
  * 
  */
@@ -20,4 +22,8 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, Category = "Material")
 	TObjectPtr<UMaterialInterface> RockTeamMaterial;
+
+public:
+	UPROPERTY(EditDefaultsOnly, Category = "Effect")
+	TObjectPtr<UNiagaraSystem> SmashEffect;
 };
