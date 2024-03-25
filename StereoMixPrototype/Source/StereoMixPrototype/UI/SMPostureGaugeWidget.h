@@ -17,4 +17,7 @@ class STEREOMIXPROTOTYPE_API USMPostureGaugeWidget : public UUserWidget
 public:
 	UFUNCTION(BlueprintImplementableEvent)
 	void UpdatePostureGauge(float InCurrentPostureGauge, float MaxPostureGauge);
+
+	UFUNCTION(BlueprintImplementableEvent)
+	void UpdatePlayerName(const FString& InName);
 };

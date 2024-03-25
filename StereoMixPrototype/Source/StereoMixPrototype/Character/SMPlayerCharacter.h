@@ -10,6 +10,7 @@
 #include "Interface/SMTeamComponentInterface.h"
 #include "SMPlayerCharacter.generated.h"
 
+class ASMPlayerState;
 class UNiagaraComponent;
 class USphereComponent;
 class USMSmashComponent;
@@ -57,6 +58,8 @@ public:
 
 protected:
 	virtual void OnRep_Controller() override;
+	
+	virtual void OnRep_PlayerState() override;
 
 protected:
 	UFUNCTION()
@@ -185,6 +188,9 @@ protected:
 	TObjectPtr<UNiagaraComponent> StunEffectComponent; 
 	
 	FTimerHandle StunTimerHandle;
+
+	UPROPERTY()
+	TObjectPtr<ASMPlayerState> StoredSMPlayerState;
 // ~End of Character Section
 
 // ~Aim Section
@@ -358,6 +364,10 @@ protected:
 // ~End of Ranged Attack Section
 
 // ~UI Section
+protected:
+	UFUNCTION(Server, Reliable)
+	void ServerRPCSetPlayerName(const FString& InName);
+
 protected:
 	UPROPERTY(VisibleAnywhere, Category = "UI")
 	TObjectPtr<UWidgetComponent> PostureGauge;

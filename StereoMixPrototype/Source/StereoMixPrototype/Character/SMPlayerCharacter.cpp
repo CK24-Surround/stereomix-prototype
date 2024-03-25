@@ -19,6 +19,7 @@
 #include "Components/SphereComponent.h"
 #include "Components/WidgetComponent.h"
 #include "Design/SMPlayerCharacterDesignData.h"
+#include "Game/SMGameInstance.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/GameStateBase.h"
 #include "GameFramework/SpringArmComponent.h"
@@ -28,6 +29,7 @@
 #include "Physics/SMCollision.h"
 #include "Player/AimPlane.h"
 #include "Player/SMPlayerController.h"
+#include "Player/SMPlayerState.h"
 #include "Projectile/SMRangedAttackProjectile.h"
 #include "UI/SMPostureGaugeWidget.h"
 
@@ -157,6 +159,22 @@ void ASMPlayerCharacter::OnRep_Controller()
 	}
 }
 
+void ASMPlayerCharacter::OnRep_PlayerState()
+{
+	Super::OnRep_PlayerState();
+
+	StoredSMPlayerState = GetPlayerState<ASMPlayerState>();
+
+	if (IsLocallyControlled())
+	{
+		const USMGameInstance* SMGameInstance = GetGameInstance<USMGameInstance>();
+		if (SMGameInstance)
+		{
+			ServerRPCSetPlayerName(SMGameInstance->GetPlayerName());
+		}
+	}
+}
+
 void ASMPlayerCharacter::OnRep_bCanControl()
 {
 	if (bCanControl)
@@ -265,6 +283,11 @@ void ASMPlayerCharacter::BeginPlay()
 void ASMPlayerCharacter::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
+
+	if (PostureGaugeWidget && StoredSMPlayerState)
+	{
+		PostureGaugeWidget->UpdatePlayerName(StoredSMPlayerState->GetPlayerName());
+	}
 
 	if (bCanControl)
 	{
@@ -1095,6 +1118,15 @@ void ASMPlayerCharacter::HitProjectile()
 	}
 
 	MulticastRPCPlayProjectileHitVisualEffect(this);
+}
+
+void ASMPlayerCharacter::ServerRPCSetPlayerName_Implementation(const FString& InName)
+{
+	StoredSMPlayerState = GetPlayerState<ASMPlayerState>();
+	if (StoredSMPlayerState)
+	{
+		StoredSMPlayerState->SetPlayerName(InName);
+	}
 }
 
 void ASMPlayerCharacter::MulticastRPCPlayProjectileHitVisualEffect_Implementation(ASMPlayerCharacter* NeedPlayingCharacter)
