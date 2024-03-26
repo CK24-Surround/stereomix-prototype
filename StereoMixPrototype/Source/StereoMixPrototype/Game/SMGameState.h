@@ -1,5 +1,3 @@
-
-
 #pragma once
 
 #include "CoreMinimal.h"
@@ -8,7 +6,9 @@
 #include "SMGameState.generated.h"
 
 class ASMTile;
+
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnChangeScore, int32 /*CurrentScore*/);
+DECLARE_MULTICAST_DELEGATE_OneParam(FOnChangeRoundTimeSignature, int32 /*RemainRoundTime*/);
 
 /**
  * 
@@ -31,14 +31,14 @@ public:
 
 	FORCEINLINE int32 GetRockTeamScore() const { return RockTeamScore; }
 	void SetRockTeamScore(int32 InRockTeamScore);
-	
+
 protected:
 	UFUNCTION()
 	void OnRep_FutureBassTeamScore();
 
 	UFUNCTION()
 	void OnRep_RockTeamScore();
-	
+
 protected:
 	UPROPERTY(ReplicatedUsing = OnRep_FutureBassTeamScore)
 	int32 FutureBassTeamScore = 0;
@@ -58,7 +58,27 @@ protected:
 	void OnChangeTile(ESMTeam InPreviousTeam, ESMTeam InCurrentTeam);
 
 	void SwapTile(ESMTeam InCurrentTeam);
-	
+
 	void AddTile(ESMTeam InCurrentTeam);
 // ~End of Tile Section
+
+// ~Round Time Section
+public:
+	FORCEINLINE int32 GetRemainRoundTime() { return RemainRoundTime; }
+
+protected:
+	void SetRemainRoundTime();
+
+	UFUNCTION()
+	void OnRep_RemainRoundTime();
+
+protected:
+	UPROPERTY(ReplicatedUsing = OnRep_RemainRoundTime)
+	int32 RemainRoundTime;
+// ~End of Round Time Section
+
+// ~Delegate Section
+public:
+	FOnChangeRoundTimeSignature OnChangeRoundTime;
+// ~End of Delegate Section
 };

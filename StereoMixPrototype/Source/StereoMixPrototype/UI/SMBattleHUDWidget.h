@@ -19,4 +19,7 @@ public:
 
 	UFUNCTION(BlueprintImplementableEvent)
 	void UpdateRockTeamScore(int32 InRockTeamScore);
+
+	UFUNCTION(BlueprintImplementableEvent)
+	void UpdateRemainRoundTime(int32 InRemainRoundTime);
 };

@@ -1,6 +1,7 @@
 #include "SMGameState.h"
 
 #include "EngineUtils.h"
+#include "SMGameMode.h"
 #include "Log/SMLog.h"
 #include "Net/UnrealNetwork.h"
 #include "Tile/SMTile.h"
@@ -21,6 +22,13 @@ void ASMGameState::PostInitializeComponents()
 			}
 		}
 	}
+
+	ASMGameMode* SMGameMode = GetWorld()->GetAuthGameMode<ASMGameMode>();
+	if (SMGameMode)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("델리게이트 바인드 성공"));
+		SMGameMode->OnChangeRemainRoundTime.BindUObject(this, &ASMGameState::SetRemainRoundTime);
+	}
 }
 
 void ASMGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -29,6 +37,7 @@ void ASMGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLife
 
 	DOREPLIFETIME(ASMGameState, FutureBassTeamScore);
 	DOREPLIFETIME(ASMGameState, RockTeamScore);
+	DOREPLIFETIME(ASMGameState, RemainRoundTime);
 }
 
 void ASMGameState::SetFutureBassTeamScore(int32 InFutureBassTeamScore)
@@ -119,4 +128,18 @@ void ASMGameState::AddTile(ESMTeam InCurrentTeam)
 			break;
 		}
 	}
+}
+
+void ASMGameState::SetRemainRoundTime()
+{
+	ASMGameMode* SMGameMode = GetWorld()->GetAuthGameMode<ASMGameMode>();
+	if (SMGameMode)
+	{
+		RemainRoundTime = SMGameMode->GetRemainRoundTime();
+	}
+}
+
+void ASMGameState::OnRep_RemainRoundTime()
+{
+	OnChangeRoundTime.Broadcast(RemainRoundTime);
 }

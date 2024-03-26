@@ -42,6 +42,9 @@ void ASMPlayerController::BeginPlay()
 			
 			SMGameState->OnChangeRockTeamScore.AddUObject(BattleHUD, &USMBattleHUDWidget::UpdateRockTeamScore);
 			BattleHUD->UpdateRockTeamScore(SMGameState->GetRockTeamScore());
+
+			SMGameState->OnChangeRoundTime.AddUObject(BattleHUD, &USMBattleHUDWidget::UpdateRemainRoundTime);
+			BattleHUD->UpdateRemainRoundTime(SMGameState->GetRemainRoundTime());
 		}
 	}
 
