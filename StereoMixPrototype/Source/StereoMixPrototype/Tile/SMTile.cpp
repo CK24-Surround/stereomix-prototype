@@ -7,9 +7,13 @@
 #include "NiagaraFunctionLibrary.h"
 #include "SMTileAssetData.h"
 #include "Data/AssetPath.h"
+#include "GameFramework/GameMode.h"
+#include "GameFramework/GameState.h"
 #include "Log/SMLog.h"
 #include "Net/UnrealNetwork.h"
 #include "Physics/SMCollision.h"
+
+class AGameState;
 
 ASMTile::ASMTile()
 {
@@ -58,6 +62,16 @@ void ASMTile::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeP
 void ASMTile::TriggerTile(ESMTeam InTeam)
 {
 	// 서버에서 호출됩니다. SmashComponent에서 호출됩니다.
+
+	// 만약 게임 중이 아니라면 타일이 트리거 되지 않도록 합니다.
+	const AGameState* GameState = GetWorld()->GetGameState<AGameState>();
+	if (GameState)
+	{
+		if (GameState->GetMatchState() != MatchState::InProgress)
+		{
+			return;
+		}
+	}
 
 	NET_LOG(LogSMTile, Log, TEXT("트리거 된 타일: %s"), *GetName());
 	TArray<ASMTile*> SelectedTiles = SelectAdjacentTiles();

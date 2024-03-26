@@ -19,7 +19,9 @@ public:
 
 	UFUNCTION(BlueprintImplementableEvent)
 	void UpdateRockTeamScore(int32 InRockTeamScore);
+	
+	void UpdateRemainRoundTime(int32 InRemainRoundTime);
 
 	UFUNCTION(BlueprintImplementableEvent)
-	void UpdateRemainRoundTime(int32 InRemainRoundTime);
+	void UpdateRemainRoundMinutesAndSeconds(const FString& InMinutes, const FString& InSeconds);
 };

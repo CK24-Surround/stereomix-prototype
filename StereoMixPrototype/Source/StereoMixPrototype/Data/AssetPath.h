@@ -12,3 +12,5 @@
 #define TILE_DATA_ASSET_PATH TEXT("/Script/StereoMixPrototype.SMTileAssetData'/Game/StereoMixPrototype/Data/Asset/DA_TileAsset.DA_TileAsset'")
 
 #define PLAYER_CONTROLLER_ASSET_PATH TEXT("/Script/StereoMixPrototype.SMPlayerControllerAssetData'/Game/StereoMixPrototype/Data/Asset/DA_PlayerControllerAsset.DA_PlayerControllerAsset'")
+
+#define GAME_DESIGN_DATA TEXT("/Script/StereoMixPrototype.SMGameDesignData'/Game/StereoMixPrototype/Design/DA_GameDesign.DA_GameDesign'")

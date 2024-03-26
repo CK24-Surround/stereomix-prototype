@@ -26,7 +26,6 @@ void ASMGameState::PostInitializeComponents()
 	ASMGameMode* SMGameMode = GetWorld()->GetAuthGameMode<ASMGameMode>();
 	if (SMGameMode)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("델리게이트 바인드 성공"));
 		SMGameMode->OnChangeRemainRoundTime.BindUObject(this, &ASMGameState::SetRemainRoundTime);
 	}
 }
