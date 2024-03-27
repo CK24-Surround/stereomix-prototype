@@ -27,6 +27,7 @@ void ASMGameState::PostInitializeComponents()
 	if (SMGameMode)
 	{
 		SMGameMode->OnChangeRemainRoundTime.BindUObject(this, &ASMGameState::SetRemainRoundTime);
+		SMGameMode->OnTriggerResult.AddUObject(this, &ASMGameState::MulticastRPCProcessResult);
 	}
 }
 
@@ -141,4 +142,29 @@ void ASMGameState::SetRemainRoundTime()
 void ASMGameState::OnRep_RemainRoundTime()
 {
 	OnChangeRoundTime.Broadcast(RemainRoundTime);
+}
+
+void ASMGameState::MulticastRPCProcessResult_Implementation()
+{
+	// UI는 클라이언트 측에만 띄워주면 됩니다.
+	if (!HasAuthority())
+	{
+		ProcessResult();
+	}
+}
+
+void ASMGameState::ProcessResult()
+{
+	if (FutureBassTeamScore > RockTeamScore)
+	{
+		OnResult.Broadcast(ESMTeam::FutureBass);
+	}
+	else if (FutureBassTeamScore < RockTeamScore)
+	{
+		OnResult.Broadcast(ESMTeam::Rock);
+	}
+	else
+	{
+		OnResult.Broadcast(ESMTeam::None);
+	}
 }

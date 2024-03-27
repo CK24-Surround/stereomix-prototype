@@ -9,6 +9,7 @@ class ASMTile;
 
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnChangeScore, int32 /*CurrentScore*/);
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnChangeRoundTimeSignature, int32 /*RemainRoundTime*/);
+DECLARE_MULTICAST_DELEGATE_OneParam(FOnResultSignature, ESMTeam /*VictoryTeam*/)
 
 /**
  * 
@@ -77,8 +78,18 @@ protected:
 	int32 RemainRoundTime;
 // ~End of Round Time Section
 
+// ~Result Section
+protected:
+	UFUNCTION(NetMulticast, Reliable)
+	void MulticastRPCProcessResult();
+
+	void ProcessResult();
+	
+// ~End of Result Section
+	
 // ~Delegate Section
 public:
 	FOnChangeRoundTimeSignature OnChangeRoundTime;
+	FOnResultSignature OnResult;
 // ~End of Delegate Section
 };

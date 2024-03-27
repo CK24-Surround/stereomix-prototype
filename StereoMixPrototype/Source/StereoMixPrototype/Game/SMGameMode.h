@@ -8,6 +8,7 @@
 
 class USMGameDesignData;
 DECLARE_DELEGATE(FOnChangeRemainRoundTimeSignature);
+DECLARE_MULTICAST_DELEGATE(FOnTriggerResultSignature);
 
 UENUM(BlueprintType)
 enum class EInGameState
@@ -64,5 +65,6 @@ protected:
 // ~Delegate Section
 public:
 	FOnChangeRemainRoundTimeSignature OnChangeRemainRoundTime;
+	FOnTriggerResultSignature OnTriggerResult;
 // ~End of Delegate Section
 };

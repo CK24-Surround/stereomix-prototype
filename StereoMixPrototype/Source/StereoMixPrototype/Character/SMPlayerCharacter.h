@@ -6,6 +6,7 @@
 #include "Character/SMCharacterBase.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Interface/SMCharacterAnimationInterface.h"
+#include "Interface/SMPlayerControllerInterface.h"
 #include "Interface/SMProjectileInterface.h"
 #include "Interface/SMTeamComponentInterface.h"
 #include "SMPlayerCharacter.generated.h"
@@ -40,7 +41,8 @@ enum class EPlayerCharacterState : uint8
  */
 UCLASS()
 class STEREOMIXPROTOTYPE_API ASMPlayerCharacter : public ASMCharacterBase,
-                                                  public ISMCharacterAnimationInterface, public ISMProjectileInterface, public ISMTeamComponentInterface
+                                                  public ISMCharacterAnimationInterface, public ISMProjectileInterface,
+                                                  public ISMTeamComponentInterface, public ISMPlayerControllerInterface
 {
 	GENERATED_BODY()
 
@@ -58,7 +60,7 @@ public:
 
 protected:
 	virtual void OnRep_Controller() override;
-	
+
 	virtual void OnRep_PlayerState() override;
 
 protected:
@@ -131,7 +133,7 @@ protected:
 
 	/** 현재 마우스 포인터의 위치를 반환합니다 */
 	FVector GetMouseCursorLocation();
-	
+
 // ~End of Input Section
 
 // ~Movement Section
@@ -185,8 +187,8 @@ protected:
 	TObjectPtr<USphereComponent> HitBoxComponent;
 
 	UPROPERTY(VisibleAnywhere, Category = "Effect")
-	TObjectPtr<UNiagaraComponent> StunEffectComponent; 
-	
+	TObjectPtr<UNiagaraComponent> StunEffectComponent;
+
 	FTimerHandle StunTimerHandle;
 
 	UPROPERTY()
@@ -379,7 +381,7 @@ protected:
 // ~Team Section
 public:
 	FORCEINLINE virtual USMTeamComponent* GetTeamComponent() override { return TeamComponent; }
-	
+
 	virtual void ResetTeamMaterial() override;
 
 	virtual ESMTeam GetCurrentTeam() const override;

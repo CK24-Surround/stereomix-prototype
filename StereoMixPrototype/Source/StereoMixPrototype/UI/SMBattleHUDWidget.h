@@ -1,4 +1,3 @@
-
 #pragma once
 
 #include "CoreMinimal.h"
@@ -19,9 +18,15 @@ public:
 
 	UFUNCTION(BlueprintImplementableEvent)
 	void UpdateRockTeamScore(int32 InRockTeamScore);
-	
+
 	void UpdateRemainRoundTime(int32 InRemainRoundTime);
 
 	UFUNCTION(BlueprintImplementableEvent)
 	void UpdateRemainRoundMinutesAndSeconds(const FString& InMinutes, const FString& InSeconds);
+
+	UFUNCTION(BlueprintImplementableEvent)
+	void ShowResultDraw();
+	
+	UFUNCTION(BlueprintImplementableEvent)
+	void ShowResult(bool bIsVictory);
 };

@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Data/SMTeam.h"
 #include "GameFramework/PlayerController.h"
 #include "SMPlayerController.generated.h"
 
@@ -41,6 +42,8 @@ protected: // Exit Section
 
 // ~Widget Section
 protected:
+	void ProcessResult(ESMTeam InVictoryTeam);
+	
 	UPROPERTY()
 	TObjectPtr<USMBattleHUDWidget> BattleHUD;
 // ~End of Widget Section

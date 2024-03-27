@@ -39,6 +39,8 @@ void ASMGameMode::GameResult()
 	RemainRoundTime = DesignData->ResultTime;
 	EndMatch();
 
+	OnTriggerResult.Broadcast();
+
 	NET_LOG(LogSMNetwork, Log, TEXT("게임 종료 및 결과창 출력"));
 }
 
