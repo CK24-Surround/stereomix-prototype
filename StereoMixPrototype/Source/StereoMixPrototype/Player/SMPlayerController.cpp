@@ -10,11 +10,13 @@
 #include "Game/SMGameState.h"
 #include "Interface/SMPlayerControllerInterface.h"
 #include "Log/SMLog.h"
+#include "Physics/SMCollision.h"
 #include "UI/SMBattleHUDWidget.h"
 
 ASMPlayerController::ASMPlayerController()
 {
-	static ConstructorHelpers::FObjectFinder<USMPlayerControllerAssetData> DA_PlayerControllerAsset(PLAYER_CONTROLLER_ASSET_PATH);
+	static ConstructorHelpers::FObjectFinder<USMPlayerControllerAssetData> DA_PlayerControllerAsset(
+		PLAYER_CONTROLLER_ASSET_PATH);
 	if (DA_PlayerControllerAsset.Succeeded())
 	{
 		AssetData = DA_PlayerControllerAsset.Object;
@@ -23,6 +25,29 @@ ASMPlayerController::ASMPlayerController()
 	check(AssetData);
 
 	bShowMouseCursor = true;
+}
+
+FVector ASMPlayerController::GetMousePointingDirection() const
+{
+	FHitResult HitResult;
+	if (!GetHitResultUnderCursor(TC_AIM_PLANE, false, HitResult))
+	{
+		return FVector::ZeroVector;
+	}
+	const FVector MouseLocation = HitResult.Location;
+	const FVector MouseDirection = (MouseLocation - Owner->GetActorLocation()).GetSafeNormal();
+	return MouseDirection;
+}
+
+FVector ASMPlayerController::GetMouseCursorLocation() const
+{
+	FHitResult HitResult;
+	if (!GetHitResultUnderCursor(TC_AIM_PLANE, false, HitResult))
+	{
+		return FVector::ZeroVector;
+	}
+	const FVector MouseLocation = HitResult.Location;
+	return MouseLocation;
 }
 
 void ASMPlayerController::BeginPlay()
@@ -82,7 +107,7 @@ void ASMPlayerController::ProcessResult(ESMTeam InVictoryTeam)
 			NET_LOG(LogSMPlayerController, Log, TEXT("팀 없음"));
 			return;
 		}
-		else if (InVictoryTeam == ESMTeam::None)
+		if (InVictoryTeam == ESMTeam::None)
 		{
 			NET_LOG(LogSMPlayerController, Log, TEXT("무승부 트리거"));
 			BattleHUD->ShowResultDraw();

@@ -3,15 +3,17 @@
 
 #include "Character/SMCharacterBase.h"
 
-#include "EnhancedInputComponent.h"
-#include "EnhancedInputSubsystems.h"
 #include "SMCharacterAssetData.h"
+#include "SMCharacterMovementComponent.h"
+#include "Ability/SMCharacterAbilityManagerComponent.h"
 #include "CharacterStat/SMCharacterStatComponent.h"
 #include "Data/AssetPath.h"
 #include "Design/SMPlayerCharacterDesignData.h"
+#include "Interface/SMCharacterAbilityInterface.h"
 
 // Sets default values
-ASMCharacterBase::ASMCharacterBase()
+ASMCharacterBase::ASMCharacterBase(const FObjectInitializer& ObjectInitializer)
+	: Super(ObjectInitializer.SetDefaultSubobjectClass<USMCharacterMovementComponent>(CharacterMovementComponentName))
 {
 	PrimaryActorTick.bCanEverTick = true;
 
@@ -21,7 +23,8 @@ ASMCharacterBase::ASMCharacterBase()
 		AssetData = SMCharacterAssetDataRef.Object;
 	}
 
-	static ConstructorHelpers::FObjectFinder<USMPlayerCharacterDesignData> SMPlayerCharacterDesignDataRef(PLAYER_CHARACTER_DESIGN_DATA_ASSET_PATH);
+	static ConstructorHelpers::FObjectFinder<USMPlayerCharacterDesignData> SMPlayerCharacterDesignDataRef(
+		PLAYER_CHARACTER_DESIGN_DATA_ASSET_PATH);
 	if (SMPlayerCharacterDesignDataRef.Succeeded())
 	{
 		DesignData = SMPlayerCharacterDesignDataRef.Object;
@@ -31,13 +34,19 @@ ASMCharacterBase::ASMCharacterBase()
 	check(DesignData);
 
 	AssetCheck();
-	
+
 	Stat = CreateDefaultSubobject<USMCharacterStatComponent>(TEXT("CharacterStat"));
+	AbilityManager = CreateDefaultSubobject<USMCharacterAbilityManagerComponent>(TEXT("AbilityManager"));
 }
 
 void ASMCharacterBase::PostInitializeComponents()
 {
 	Super::PostInitializeComponents();
+
+	for (const TTuple<FName, ISMCharacterAbilityInterface*>& Ability : AbilityManager->GetAbilities())
+	{
+		Ability.Value->PostInitializeOwner();
+	}
 }
 
 // Called when the game starts or when spawned

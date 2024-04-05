@@ -24,7 +24,13 @@ class STEREOMIXPROTOTYPE_API ASMPlayerController : public APlayerController
 
 public:
 	ASMPlayerController();
-	
+
+	/** 캐릭터 기준으로 마우스 포인터가 가리키는 방향을 반환합니다. */
+	FVector GetMousePointingDirection() const;
+
+	/** 현재 마우스 포인터의 위치를 반환합니다 */
+	FVector GetMouseCursorLocation() const;
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void SetupInputComponent() override;
@@ -36,15 +42,15 @@ protected:
 protected: // Exit Section
 	UFUNCTION(BlueprintImplementableEvent)
 	void Exit();
-	
+
 	UPROPERTY(EditAnywhere, Category = "Ref(Input)")
 	TObjectPtr<UInputAction> ExitAction;
 
-// ~Widget Section
+	// ~Widget Section
 protected:
 	void ProcessResult(ESMTeam InVictoryTeam);
-	
+
 	UPROPERTY()
 	TObjectPtr<USMBattleHUDWidget> BattleHUD;
-// ~End of Widget Section
+	// ~End of Widget Section
 };

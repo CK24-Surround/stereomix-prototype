@@ -10,7 +10,8 @@
 
 USMCharacterAnimInstance::USMCharacterAnimInstance()
 {
-	static ConstructorHelpers::FObjectFinder<USMCharacterAnimationAssetData> DA_CharacterAnimationAsset(CHARACTER_ANIMATION_ASSET_PATH);
+	static ConstructorHelpers::FObjectFinder<USMCharacterAnimationAssetData> DA_CharacterAnimationAsset(
+		CHARACTER_ANIMATION_ASSET_PATH);
 	if (DA_CharacterAnimationAsset.Succeeded())
 	{
 		AssetData = DA_CharacterAnimationAsset.Object;
@@ -100,6 +101,20 @@ void USMCharacterAnimInstance::PlayStunEnd()
 	{
 		Montage_JumpToSection(TEXT("End"), AssetData->Stun);
 	}
+}
+
+void USMCharacterAnimInstance::PlayDashGrab()
+{
+	NET_ANIM_LOG(LogSMAnim, Log, TEXT("대쉬 잡기 애니메이션 재생"));
+	Montage_Play(AssetData->DashGrabMontage);
+	Montage_SetEndDelegate(OnDashGrabEnded, AssetData->DashGrabMontage);
+}
+
+void USMCharacterAnimInstance::PlayGrabSmash()
+{
+	NET_ANIM_LOG(LogSMAnim, Log, TEXT("매치기 애니메이션 재생"));
+	Montage_Play(AssetData->GrabSmashMontage);
+	Montage_SetEndDelegate(OnGrabSmashEnded, AssetData->GrabSmashMontage);
 }
 
 float USMCharacterAnimInstance::GetStunEndLength()

@@ -12,6 +12,8 @@
 #include "SMCharacterAssetData.h"
 #include "SMSmashComponent.h"
 #include "SMTeamComponent.h"
+#include "Ability/SMCharacterAbilityManagerComponent.h"
+#include "Ability/SMGrabSmashAbilityComponent.h"
 #include "Animation/SMCharacterAnimInstance.h"
 #include "Camera/CameraComponent.h"
 #include "CharacterStat/SMCharacterStatComponent.h"
@@ -33,19 +35,19 @@
 #include "Projectile/SMRangedAttackProjectile.h"
 #include "UI/SMPostureGaugeWidget.h"
 
-ASMPlayerCharacter::ASMPlayerCharacter()
+ASMPlayerCharacter::ASMPlayerCharacter(const FObjectInitializer& ObjectInitializer)
+	: Super(ObjectInitializer)
 {
 	GetMesh()->SetCollisionProfileName("NoCollision");
 
-	UCharacterMovementComponent* CachedCharacterMovement = GetCharacterMovement();
-	CachedCharacterMovement->MaxWalkSpeed = MoveSpeed;
-	CachedCharacterMovement->MaxAcceleration = 10000.0f;
-	CachedCharacterMovement->BrakingDecelerationWalking = 10000.0f;
-	CachedCharacterMovement->BrakingDecelerationFalling = 0.0f; // ~ 100 중 선택
-	CachedCharacterMovement->AirControl = 1.0f;
-
-	CachedCharacterMovement->GravityScale = 2.0f;
-	CachedCharacterMovement->JumpZVelocity = 700.0f;
+	UCharacterMovementComponent* Movement = GetCharacterMovement();
+	Movement->MaxWalkSpeed = 700.0f;
+	Movement->MaxAcceleration = 10000.0f;
+	Movement->BrakingDecelerationWalking = 1000.0f;
+	Movement->BrakingDecelerationFalling = 0.0f; // ~ 100 중 선택
+	Movement->AirControl = 1.0f;
+	Movement->GravityScale = 2.0f;
+	Movement->JumpZVelocity = 700.0f;
 
 	CameraBoom = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraBoom"));
 	CameraBoom->SetupAttachment(GetRootComponent());
@@ -67,10 +69,7 @@ ASMPlayerCharacter::ASMPlayerCharacter()
 	HitBoxComponent = CreateDefaultSubobject<USphereComponent>(TEXT("HitBox"));
 	HitBoxComponent->SetupAttachment(GetRootComponent());
 	HitBoxComponent->SetCollisionProfileName(CP_PLAYER_HIT_BOX);
-
-	StunEffectComponent = CreateDefaultSubobject<UNiagaraComponent>(TEXT("StunEffect"));
-	StunEffectComponent->SetupAttachment(GetRootComponent());
-	StunEffectComponent->SetAutoActivate(false);
+	HitBoxComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 
 	MoveTrailEffectComponent = CreateDefaultSubobject<UNiagaraComponent>(TEXT("MoveTrailEffect"));
 	MoveTrailEffectComponent->SetupAttachment(GetMesh());
@@ -80,38 +79,21 @@ ASMPlayerCharacter::ASMPlayerCharacter()
 	InitCamera();
 
 	CurrentState = EPlayerCharacterState::Normal;
-	bEnableCollision = true;
-	bEnableMovement = true;
-	bCanControl = true;
-	CollisionProfileName = CP_PLAYER_HIT_BOX;
-	bIsStunned = false;
+
+	// Add ability
+	GetAbilityManager()->AddAbility<USMGrabSmashAbilityComponent>(TEXT("GrabSmash"));
 }
 
 void ASMPlayerCharacter::PostInitializeComponents()
 {
 	Super::PostInitializeComponents();
-
-	StoredSMAnimInstance = CastChecked<USMCharacterAnimInstance>(GetMesh()->GetAnimInstance());
-
-	if (HasAuthority())
-	{
-		StoredSMAnimInstance->OnSmashEnded.BindUObject(this, &ASMPlayerCharacter::SmashEnded);
-		StoredSMAnimInstance->OnStandUpEnded.BindUObject(this, &ASMPlayerCharacter::StandUpEnded);
-		StoredSMAnimInstance->OnStunEnded.BindUObject(this, &ASMPlayerCharacter::StunEnded);
-		Stat->OnZeroPostureGauge.AddUObject(this, &ASMPlayerCharacter::ApplyStunned);
-	}
 }
 
+// Server에서만 호출됩니다.
 void ASMPlayerCharacter::PossessedBy(AController* NewController)
 {
 	Super::PossessedBy(NewController);
-
-	// 무조건 서버에서만 실행되겠지만 만약을 위한 조건입니다.
-	if (HasAuthority())
-	{
-		// 서버에선 OnRep_Controller가 호출되지 않고, 클라이언트에서는 PossessedBy가 호출되지 않기 때문에 서버는 여기서 컨트롤러를 캐싱합니다.
-		StoredSMPlayerController = CastChecked<ASMPlayerController>(GetController());
-	}
+	SMPlayerController = CastChecked<ASMPlayerController>(NewController);
 }
 
 void ASMPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -119,19 +101,21 @@ void ASMPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputC
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
 
 	UEnhancedInputComponent* EnhancedInputComponent = Cast<UEnhancedInputComponent>(PlayerInputComponent);
-	if (EnhancedInputComponent)
+	if (!EnhancedInputComponent)
 	{
-		EnhancedInputComponent->BindAction(AssetData->MoveAction, ETriggerEvent::Triggered, this, &ASMPlayerCharacter::Move);
-
-		// 점프는 폐기예정
-		// EnhancedInputComponent->BindAction(AssetData->JumpAction, ETriggerEvent::Triggered, this, &ASMPlayerCharacter::Jump);
-		EnhancedInputComponent->BindAction(AssetData->HoldAction, ETriggerEvent::Started, this, &ASMPlayerCharacter::Catch);
-		EnhancedInputComponent->BindAction(AssetData->SmashAction, ETriggerEvent::Started, this, &ASMPlayerCharacter::Smash);
-		EnhancedInputComponent->BindAction(AssetData->RangedAttackAction, ETriggerEvent::Triggered, this, &ASMPlayerCharacter::RangedAttack);
-
-		EnhancedInputComponent->BindAction(AssetData->FutureBaseTeamSelectAction, ETriggerEvent::Started, this, &ASMPlayerCharacter::ServerRPCFutureBassTeamSelect);
-		EnhancedInputComponent->BindAction(AssetData->RockTeamSelectAction, ETriggerEvent::Started, this, &ASMPlayerCharacter::ServerRPCRockTeamSelect);
+		return;
 	}
+
+	EnhancedInputComponent->BindAction(AssetData->MoveAction, ETriggerEvent::Triggered, this,
+	                                   &ASMPlayerCharacter::Move);
+
+	EnhancedInputComponent->BindAction(AssetData->FutureBaseTeamSelectAction, ETriggerEvent::Started, this,
+	                                   &ASMPlayerCharacter::ServerRPCFutureBassTeamSelect);
+	EnhancedInputComponent->BindAction(AssetData->RockTeamSelectAction, ETriggerEvent::Started, this,
+	                                   &ASMPlayerCharacter::ServerRPCRockTeamSelect);
+
+	// Set ability input
+	GetAbilityManager()->GetAbility(TEXT("GrabSmash"))->BindInput(EnhancedInputComponent, AssetData->SmashAction);
 }
 
 void ASMPlayerCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -139,118 +123,27 @@ void ASMPlayerCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& O
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
 	DOREPLIFETIME(ASMPlayerCharacter, CurrentState);
-	DOREPLIFETIME(ASMPlayerCharacter, bEnableCollision);
-	DOREPLIFETIME(ASMPlayerCharacter, bCanControl);
-	DOREPLIFETIME(ASMPlayerCharacter, bEnableMovement);
-	DOREPLIFETIME(ASMPlayerCharacter, CaughtCharacter);
-	DOREPLIFETIME(ASMPlayerCharacter, CollisionProfileName);
-	DOREPLIFETIME(ASMPlayerCharacter, bIsStunned);
-}
-
-void ASMPlayerCharacter::OnRep_Controller()
-{
-	Super::OnRep_Controller();
-
-	// 로컬 컨트롤러를 캐싱해야하기위한 조건입니다.
-	if (IsLocallyControlled())
-	{
-		// 서버에선 OnRep_Controller가 호출되지 않고, 클라이언트에서는 PossessedBy가 호출되지 않기 때문에 서버는 여기서 컨트롤러를 캐싱합니다.
-		StoredSMPlayerController = CastChecked<ASMPlayerController>(GetController());
-	}
 }
 
 void ASMPlayerCharacter::OnRep_PlayerState()
 {
 	Super::OnRep_PlayerState();
 
-	StoredSMPlayerState = GetPlayerState<ASMPlayerState>();
 
-	if (IsLocallyControlled())
+	SMPlayerState = GetPlayerState<ASMPlayerState>();
+
+	// 클라이언트에서 로컬 캐릭터만 컨트롤러를 가지고 있음
+	if (APlayerController* PC = SMPlayerState->GetPlayerController())
 	{
-		const USMGameInstance* SMGameInstance = GetGameInstance<USMGameInstance>();
-		if (SMGameInstance)
-		{
-			ServerRPCSetPlayerName(SMGameInstance->GetPlayerName());
-		}
+		SMPlayerController = CastChecked<ASMPlayerController>(PC);
 	}
 }
 
-void ASMPlayerCharacter::OnRep_bCanControl()
+void ASMPlayerCharacter::OnRep_CurrentState(const EPlayerCharacterState& OldState) const
 {
-	if (bCanControl)
-	{
-		NET_LOG(LogSMCharacter, Log, TEXT("컨트롤 활성화"))
-		EnableInput(StoredSMPlayerController);
-		bUseControllerRotationPitch = true;
-		bUseControllerRotationYaw = true;
-		bUseControllerRotationRoll = true;
-	}
-	else
-	{
-		NET_LOG(LogSMCharacter, Log, TEXT("컨트롤 비활성화"))
-		DisableInput(StoredSMPlayerController);
-		bUseControllerRotationPitch = false;
-		bUseControllerRotationYaw = false;
-		bUseControllerRotationRoll = false;
-	}
-}
-
-void ASMPlayerCharacter::OnRep_CurrentState()
-{
-	switch (CurrentState)
-	{
-		case EPlayerCharacterState::Normal:
-		{
-			NET_LOG(LogSMCharacter, Log, TEXT("현재 캐릭터 상태: Normal"));
-			break;
-		}
-		case EPlayerCharacterState::Stun:
-		{
-			NET_LOG(LogSMCharacter, Log, TEXT("현재 캐릭터 상태: Stun"));
-			break;
-		}
-		case EPlayerCharacterState::Caught:
-		{
-			NET_LOG(LogSMCharacter, Log, TEXT("현재 캐릭터 상태: Caught"));
-			break;
-		}
-		case EPlayerCharacterState::Down:
-		{
-			NET_LOG(LogSMCharacter, Log, TEXT("현재 캐릭터 상태: Down"));
-			break;
-		}
-		case EPlayerCharacterState::Smash:
-		{
-			NET_LOG(LogSMCharacter, Log, TEXT("현재 캐릭터 상태: Smash"));
-			break;
-		}
-	}
-}
-
-void ASMPlayerCharacter::OnRep_bEnableMovement()
-{
-	if (bEnableMovement)
-	{
-		NET_LOG(LogSMCharacter, Log, TEXT("움직임 활성화"));
-		GetCharacterMovement()->SetMovementMode(MOVE_Walking);
-	}
-	else
-	{
-		NET_LOG(LogSMCharacter, Log, TEXT("움직임 비활성화"));
-		GetCharacterMovement()->SetMovementMode(MOVE_None);
-	}
-}
-
-void ASMPlayerCharacter::OnRep_bEnableCollision()
-{
-	NET_LOG(LogSMCharacter, Log, TEXT("충돌 %s"), bEnableCollision ? TEXT("활성화") : TEXT("비활성화"));
-	SetActorEnableCollision(bEnableCollision);
-}
-
-void ASMPlayerCharacter::OnRep_CollisionProfileName()
-{
-	NET_LOG(LogSMCharacter, Log, TEXT("콜리전 프로파일: %s"), *CollisionProfileName.ToString())
-	HitBoxComponent->SetCollisionProfileName(CollisionProfileName);
+	NET_LOG(LogSMCharacter, Log, TEXT("Change State: %s->%s"),
+	        *UEnum::GetValueAsString(OldState),
+	        *UEnum::GetValueAsString(CurrentState));
 }
 
 void ASMPlayerCharacter::BeginPlay()
@@ -262,6 +155,8 @@ void ASMPlayerCharacter::BeginPlay()
 		AimPlane = GetWorld()->SpawnActor<AAimPlane>();
 		const FAttachmentTransformRules AttachmentTransformRules(EAttachmentRule::SnapToTarget, true);
 		AimPlane->AttachToActor(this, AttachmentTransformRules);
+
+		InitializeInputSystem();
 	}
 
 	// 서버는 UI 업데이트가 필요하지 않습니다.
@@ -274,22 +169,13 @@ void ASMPlayerCharacter::BeginPlay()
 			PostureGaugeWidget->UpdatePostureGauge(Stat->GetCurrentPostureGauge(), Stat->GetBaseStat().MaxPostureGauge);
 		}
 	}
-
-	InitCharacterControl();
-
-	PullData.TotalTime = DesignData->CatchTime;
 }
 
-void ASMPlayerCharacter::Tick(float DeltaSeconds)
+void ASMPlayerCharacter::Tick(const float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 
-	if (PostureGaugeWidget && StoredSMPlayerState)
-	{
-		PostureGaugeWidget->UpdatePlayerName(StoredSMPlayerState->GetPlayerName());
-	}
-
-	if (bCanControl)
+	if (IsLocallyControlled() && InputEnabled())
 	{
 		UpdateRotateToMousePointer();
 
@@ -298,25 +184,13 @@ void ASMPlayerCharacter::Tick(float DeltaSeconds)
 		const FRotator MoveDirectionRotation = FRotationMatrix::MakeFromX(MoveDirection).Rotator();
 		MoveTrailEffectComponent->SetWorldRotation(MoveDirectionRotation);
 	}
-
-	if (PullData.bIsPulling)
-	{
-		if (HasAuthority())
-		{
-			UpdatePerformPull();
-		}
-		else
-		{
-			UpdateInterpolationPull();
-		}
-	}
 }
 
-void ASMPlayerCharacter::InitCamera()
+void ASMPlayerCharacter::InitCamera() const
 {
 	const FRotator CameraRotation(-45.0f, 0.0, 0.0);
-	const float CameraDistance = 750.0f;
-	const float CameraFOV = 90.0f;
+	constexpr float CameraDistance = 750.0f;
+	constexpr float CameraFOV = 90.0f;
 
 	CameraBoom->SetRelativeRotation(CameraRotation);
 	CameraBoom->bInheritPitch = false;
@@ -329,7 +203,7 @@ void ASMPlayerCharacter::InitCamera()
 	Camera->SetFieldOfView(CameraFOV);
 }
 
-void ASMPlayerCharacter::InitCharacterControl()
+void ASMPlayerCharacter::InitializeInputSystem() const
 {
 	if (!IsLocallyControlled())
 	{
@@ -337,72 +211,33 @@ void ASMPlayerCharacter::InitCharacterControl()
 	}
 
 	APlayerController* PlayerController = Cast<APlayerController>(GetController());
-	if (PlayerController)
+	if (!PlayerController)
 	{
-		UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PlayerController->GetLocalPlayer());
-		if (Subsystem)
-		{
-			Subsystem->ClearAllMappings();
-			Subsystem->AddMappingContext(AssetData->DefaultMappingContext, 0);
-		}
+		return;
 	}
 
+	if (UEnhancedInputLocalPlayerSubsystem* Subsystem =
+		ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PlayerController->GetLocalPlayer()))
+	{
+		Subsystem->ClearAllMappings();
+		Subsystem->AddMappingContext(AssetData->DefaultMappingContext, 0);
+	}
 	FInputModeGameOnly InputModeGameOnly;
 	InputModeGameOnly.SetConsumeCaptureMouseDown(false);
 	PlayerController->SetInputMode(InputModeGameOnly);
 }
 
-FVector ASMPlayerCharacter::GetMousePointingDirection()
-{
-	FHitResult HitResult;
-	const bool Succeed = StoredSMPlayerController->GetHitResultUnderCursor(TC_AIM_PLANE, false, HitResult);
-	if (Succeed)
-	{
-		const FVector MouseLocation = HitResult.Location;
-		const FVector MouseDirection = (MouseLocation - GetActorLocation()).GetSafeNormal();
-		return MouseDirection;
-	}
-
-	return FVector::ZeroVector;
-}
-
 void ASMPlayerCharacter::UpdateRotateToMousePointer()
 {
-	if (IsLocallyControlled())
+	const FVector MousePointingDirection = SMPlayerController->GetMousePointingDirection();
+	if (MousePointingDirection == FVector::ZeroVector)
 	{
-		const FVector MousePointingDirection = GetMousePointingDirection();
-		if (MousePointingDirection == FVector::ZeroVector)
-		{
-			return;
-		}
-
-		const FRotator MousePointingRotation = FRotationMatrix::MakeFromX(MousePointingDirection).Rotator();
-		const FRotator NewRotation = FRotator(0.0, MousePointingRotation.Yaw, 0.0);
-
-		StoredSMPlayerController->SetControlRotation(NewRotation);
-	}
-}
-
-FVector ASMPlayerCharacter::GetMouseCursorLocation()
-{
-	FHitResult HitResult;
-	const bool Succeed = StoredSMPlayerController->GetHitResultUnderCursor(TC_AIM_PLANE, false, HitResult);
-	if (Succeed)
-	{
-		const FVector MouseLocation = HitResult.Location;
-		return MouseLocation;
+		return;
 	}
 
-	return FVector::ZeroVector;
-}
-
-void ASMPlayerCharacter::SetEnableMovement(bool bInEnableMovement)
-{
-	if (HasAuthority())
-	{
-		bEnableMovement = bInEnableMovement;
-		OnRep_bEnableMovement();
-	}
+	const FRotator MousePointingRotation = FRotationMatrix::MakeFromX(MousePointingDirection).Rotator();
+	const FRotator NewRotation = FRotator(0.0, MousePointingRotation.Yaw, 0.0);
+	AddControllerYawInput(MousePointingRotation.Yaw);
 }
 
 void ASMPlayerCharacter::Move(const FInputActionValue& InputActionValue)
@@ -425,39 +260,19 @@ void ASMPlayerCharacter::Move(const FInputActionValue& InputActionValue)
 	}
 }
 
-void ASMPlayerCharacter::SetCurrentState(EPlayerCharacterState InState)
+void ASMPlayerCharacter::SetCurrentState(const EPlayerCharacterState InState)
 {
 	if (!HasAuthority())
 	{
 		return;
 	}
 
+	const EPlayerCharacterState OldState = CurrentState;
 	CurrentState = InState;
-	OnRep_CurrentState();
+	OnRep_CurrentState(OldState);
 }
 
-void ASMPlayerCharacter::SetEnableCollision(bool bInEnableCollision)
-{
-	if (!HasAuthority())
-	{
-		return;
-	}
-
-	bEnableCollision = bInEnableCollision;
-	OnRep_bEnableCollision();
-}
-
-void ASMPlayerCharacter::SetCollisionProfileName(FName InCollisionProfileName)
-{
-	if (!HasAuthority())
-	{
-		return;
-	}
-
-	CollisionProfileName = InCollisionProfileName;
-	OnRep_CollisionProfileName();
-}
-
+/*
 void ASMPlayerCharacter::ApplyStunned()
 {
 	NET_LOG(LogSMCharacter, Log, TEXT("기절 상태 적용"));
@@ -529,19 +344,9 @@ void ASMPlayerCharacter::OnRep_bIsStunned()
 	SetCanControl(!bIsStunned);
 	bIsStunned ? SetCollisionProfileName(CP_STUNNED) : SetCollisionProfileName(CP_PLAYER_HIT_BOX);
 }
+*/
 
-void ASMPlayerCharacter::SetCanControl(bool bInEnableControl)
-{
-	if (!HasAuthority())
-	{
-		return;
-	}
-
-	bCanControl = bInEnableControl;
-	OnRep_bCanControl();
-}
-
-TArray<ASMPlayerCharacter*> ASMPlayerCharacter::GetCharactersExcludingServerAndCaster()
+TArray<ASMPlayerCharacter*> ASMPlayerCharacter::GetCharactersExcludingServerAndCaster() const
 {
 	TArray<ASMPlayerCharacter*> Result;
 	for (const APlayerController* PlayerController : TActorRange<APlayerController>(GetWorld()))
@@ -550,9 +355,7 @@ TArray<ASMPlayerCharacter*> ASMPlayerCharacter::GetCharactersExcludingServerAndC
 		{
 			continue;
 		}
-
-		ASMPlayerCharacter* SMPlayerCharacter = Cast<ASMPlayerCharacter>(PlayerController->GetPawn());
-		if (SMPlayerCharacter)
+		if (ASMPlayerCharacter* SMPlayerCharacter = Cast<ASMPlayerCharacter>(PlayerController->GetPawn()))
 		{
 			Result.Add(SMPlayerCharacter);
 		}
@@ -561,7 +364,7 @@ TArray<ASMPlayerCharacter*> ASMPlayerCharacter::GetCharactersExcludingServerAndC
 	return Result;
 }
 
-float ASMPlayerCharacter::DistanceHeightFromFloor()
+float ASMPlayerCharacter::DistanceHeightFromFloor() const
 {
 	FHitResult HitResult;
 	const FVector Start = GetActorLocation() + (-GetActorUpVector() * 90.5f);
@@ -569,25 +372,23 @@ float ASMPlayerCharacter::DistanceHeightFromFloor()
 	FCollisionObjectQueryParams CollisionObjectQueryParams;
 	FCollisionQueryParams CollisionQueryParams(SCENE_QUERY_STAT(DistanceHeigh), false, this);
 	CollisionObjectQueryParams.AddObjectTypesToQuery(ECC_WorldStatic);
-	const bool bSuccess = GetWorld()->LineTraceSingleByObjectType(HitResult, Start, End, CollisionObjectQueryParams, CollisionQueryParams);
-	if (bSuccess)
+	if (GetWorld()->LineTraceSingleByObjectType(HitResult, Start, End,
+	                                            CollisionObjectQueryParams,
+	                                            CollisionQueryParams))
 	{
 		const float Distance = (HitResult.Location - Start).Size();
 		NET_LOG(LogSMCharacter, Log, TEXT("Height: %f"), Distance);
 
 		return Distance;
 	}
-	else
-	{
-		return 0.0f;
-	}
+	return 0.0f;
 }
+
+/*
 
 void ASMPlayerCharacter::OnJumped_Implementation()
 {
 	Super::OnJumped_Implementation();
-
-	NET_LOG(LogSMCharacter, Log, TEXT("Jumped!"));
 }
 
 void ASMPlayerCharacter::Landed(const FHitResult& Hit)
@@ -597,13 +398,6 @@ void ASMPlayerCharacter::Landed(const FHitResult& Hit)
 	NET_LOG(LogSMCharacter, Log, TEXT("Landed! Floor Info: %s"), *Hit.GetComponent()->GetName());
 }
 
-void ASMPlayerCharacter::SetCaughtCharacter(ASMPlayerCharacter* InCaughtCharacter)
-{
-	if (HasAuthority())
-	{
-		CaughtCharacter = InCaughtCharacter;
-	}
-}
 
 void ASMPlayerCharacter::Catch()
 {
@@ -615,13 +409,15 @@ void ASMPlayerCharacter::Catch()
 		CatchLocation = GetMouseCursorLocation();
 
 		FTimerHandle TimerHandle;
-		GetWorldTimerManager().SetTimer(TimerHandle, this, &ASMPlayerCharacter::CanCatch, DesignData->CatchCoolDownTime);
+		GetWorldTimerManager().SetTimer(TimerHandle, this, &ASMPlayerCharacter::CanCatch,
+		                                DesignData->CatchCoolDownTime);
 
 		if (!CaughtCharacter)
 		{
 			StoredSMAnimInstance->PlayCatch();
 			ServerRPCPlayCatchAnimation();
 		}
+		GetCharacterMovement()->AddForce(FVector(0.f, 100.0f, 0.f));
 	}
 }
 
@@ -638,7 +434,8 @@ void ASMPlayerCharacter::ServerRPCPlayCatchAnimation_Implementation()
 	}
 }
 
-void ASMPlayerCharacter::ClientRPCPlayCatchAnimation_Implementation(const ASMPlayerCharacter* InPlayAnimationCharacter) const
+void ASMPlayerCharacter::ClientRPCPlayCatchAnimation_Implementation(
+	const ASMPlayerCharacter* InPlayAnimationCharacter) const
 {
 	if (InPlayAnimationCharacter)
 	{
@@ -660,7 +457,10 @@ void ASMPlayerCharacter::AnimNotify_Catch()
 		FCollisionObjectQueryParams CollisionObjectQueryParams;
 		CollisionObjectQueryParams.AddObjectTypesToQuery(OC_STUNNED);
 		FCollisionQueryParams CollisionQueryParams(SCENE_QUERY_STAT(Catch), false, this);
-		bool bSuccess = GetWorld()->OverlapMultiByObjectType(HitResults, Start, FQuat::Identity, CollisionObjectQueryParams, FCollisionShape::MakeSphere(DesignData->CatchMaxDistance), CollisionQueryParams);
+		bool bSuccess = GetWorld()->OverlapMultiByObjectType(HitResults, Start, FQuat::Identity,
+		                                                     CollisionObjectQueryParams,
+		                                                     FCollisionShape::MakeSphere(DesignData->CatchMaxDistance),
+		                                                     CollisionQueryParams);
 
 		// 충돌 시
 		if (bSuccess)
@@ -675,7 +475,8 @@ void ASMPlayerCharacter::AnimNotify_Catch()
 					continue;
 				}
 
-				if (DesignData->bCanTeamCatch || TeamComponent->GetCurrentTeam() != HitPlayerCharacter->TeamComponent->GetCurrentTeam())
+				if (DesignData->bCanTeamCatch || TeamComponent->GetCurrentTeam() != HitPlayerCharacter->TeamComponent->
+					GetCurrentTeam())
 				{
 					NET_LOG(LogSMCharacter, Log, TEXT("잡기 적중"));
 					CanCatchCharacters.Add(HitPlayerCharacter);
@@ -850,7 +651,8 @@ void ASMPlayerCharacter::HandlePullEnd()
 		GetCharacterMovement()->bIgnoreClientMovementErrorChecksAndCorrection = true;
 		PullData.Caster->SetCaughtCharacter(this);
 
-		AttachToComponent(PullData.Caster->GetMesh(), FAttachmentTransformRules::SnapToTargetIncludingScale, TEXT("CatchSocket"));
+		AttachToComponent(PullData.Caster->GetMesh(), FAttachmentTransformRules::SnapToTargetIncludingScale,
+		                  TEXT("CatchSocket"));
 		StoredSMPlayerController->SetViewTargetWithBlend(PullData.Caster, 0.3f);
 
 		StoredSMAnimInstance->Montage_Stop(0.0f);
@@ -904,7 +706,8 @@ void ASMPlayerCharacter::ServerRPCPlaySmashAnimation_Implementation()
 	}
 }
 
-void ASMPlayerCharacter::ClientRPCPlaySmashAnimation_Implementation(const ASMPlayerCharacter* InCharacterToAnimation) const
+void ASMPlayerCharacter::ClientRPCPlaySmashAnimation_Implementation(
+	const ASMPlayerCharacter* InCharacterToAnimation) const
 {
 	if (InCharacterToAnimation)
 	{
@@ -979,7 +782,9 @@ void ASMPlayerCharacter::ServerRPCDetachToCaster_Implementation(FVector_NetQuant
 	if (CaughtCharacter)
 	{
 		FTimerHandle TimerHandle;
-		GetWorldTimerManager().SetTimer(TimerHandle, CaughtCharacter.Get(), &ASMPlayerCharacter::MulticastRPCPlayStandUpVisualEffect, DesignData->StandUpTime);
+		GetWorldTimerManager().SetTimer(TimerHandle, CaughtCharacter.Get(),
+		                                &ASMPlayerCharacter::MulticastRPCPlayStandUpVisualEffect,
+		                                DesignData->StandUpTime);
 
 		NET_LOG(LogSMCharacter, Log, TEXT("디태치"));
 		CaughtCharacter->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
@@ -1011,131 +816,7 @@ void ASMPlayerCharacter::SmashEnded(UAnimMontage* PlayAnimMontage, bool bInterru
 		SetCanControl(true);
 	}
 }
-
-void ASMPlayerCharacter::ClientRPCSetRotation_Implementation(FRotator InRotation)
-{
-	bUseControllerRotationPitch = true;
-	bUseControllerRotationYaw = true;
-	bUseControllerRotationRoll = true;
-	StoredSMPlayerController->SetControlRotation(InRotation);
-}
-
-void ASMPlayerCharacter::MulticastRPCPlayStandUpVisualEffect_Implementation()
-{
-	StoredSMAnimInstance->PlayStandUp();
-}
-
-void ASMPlayerCharacter::StandUpEnded(UAnimMontage* PlayAnimMontage, bool bInterrupted)
-{
-	if (HasAuthority())
-	{
-		NET_LOG(LogSMCharacter, Log, TEXT("기상 애니메이션 종료"));
-		Stat->ClearPostureGauge();
-		SetCurrentState(EPlayerCharacterState::Normal);
-		SetCollisionProfileName(CP_PLAYER_HIT_BOX);
-		SetCanControl(true);
-	}
-}
-
-void ASMPlayerCharacter::RangedAttack()
-{
-	if (CaughtCharacter)
-	{
-		return;
-	}
-
-	if (bCanRangedAttack)
-	{
-		NET_LOG(LogSMCharacter, Log, TEXT("원거리 공격 시전"));
-
-		bCanRangedAttack = false;
-
-		FTimerHandle TimerHandle;
-		const float Rate = 1.0f / DesignData->RangedAttackFiringRate;
-		GetWorldTimerManager().SetTimer(TimerHandle, this, &ASMPlayerCharacter::CanRangedAttack, Rate);
-
-		StoredSMAnimInstance->PlayRangedAttack();
-		ServerRPCPlayRangedAttackAnimation();
-	}
-}
-
-void ASMPlayerCharacter::ServerRPCPlayRangedAttackAnimation_Implementation()
-{
-	for (const ASMPlayerCharacter* CharacterToAnimation : GetCharactersExcludingServerAndCaster())
-	{
-		if (CharacterToAnimation)
-		{
-			CharacterToAnimation->ClientRPCPlayRangedAttackAnimation(this);
-		}
-	}
-}
-
-void ASMPlayerCharacter::ClientRPCPlayRangedAttackAnimation_Implementation(const ASMPlayerCharacter* CharacterToAnimation) const
-{
-	if (CharacterToAnimation)
-	{
-		CharacterToAnimation->StoredSMAnimInstance->PlayRangedAttack();
-	}
-}
-
-void ASMPlayerCharacter::CanRangedAttack()
-{
-	bCanRangedAttack = true;
-}
-
-void ASMPlayerCharacter::AnimNotify_RangedAttack()
-{
-	if (IsLocallyControlled())
-	{
-		NET_LOG(LogSMCharacter, Log, TEXT("원거리 공격 시전"))
-
-		ServerRPCShootProjectile(this);
-	}
-}
-
-void ASMPlayerCharacter::ServerRPCShootProjectile_Implementation(ASMPlayerCharacter* NewOwner)
-{
-	const FVector SpawnLocation = GetActorLocation() + (GetActorForwardVector() * GetCapsuleComponent()->GetScaledCapsuleRadius() * 2);
-	const FRotator SpawnRotation = GetActorRotation();
-	const FTransform SpawnTransform = FTransform(SpawnRotation, SpawnLocation);
-	ASMRangedAttackProjectile* CachedProjectile = GetWorld()->SpawnActorDeferred<ASMRangedAttackProjectile>(AssetData->RangedAttackProjectileClass, SpawnTransform);
-	if (CachedProjectile)
-	{
-		CachedProjectile->SetOwningPawn(NewOwner);
-	}
-
-	UGameplayStatics::FinishSpawningActor(CachedProjectile, SpawnTransform);
-}
-
-void ASMPlayerCharacter::HitProjectile()
-{
-	NET_LOG(LogSMCharacter, Log, TEXT("\"%s\"가 투사체에 적중 당했습니다."), *GetName())
-
-	if (CurrentState != EPlayerCharacterState::Smash)
-	{
-		Stat->AddCurrentPostureGauge(DesignData->RangedAttackDamage);
-		NET_LOG(LogSMCharacter, Log, TEXT("현재 체간 게이지 %f / %f"), Stat->GetCurrentPostureGauge(), Stat->GetBaseStat().MaxPostureGauge);
-	}
-
-	MulticastRPCPlayProjectileHitVisualEffect(this);
-}
-
-void ASMPlayerCharacter::ServerRPCSetPlayerName_Implementation(const FString& InName)
-{
-	StoredSMPlayerState = GetPlayerState<ASMPlayerState>();
-	if (StoredSMPlayerState)
-	{
-		StoredSMPlayerState->SetPlayerName(InName);
-	}
-}
-
-void ASMPlayerCharacter::MulticastRPCPlayProjectileHitVisualEffect_Implementation(ASMPlayerCharacter* NeedPlayingCharacter)
-{
-	if (NeedPlayingCharacter)
-	{
-		UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), AssetData->ProjectileHitEffect, NeedPlayingCharacter->GetActorLocation());
-	}
-}
+*/
 
 void ASMPlayerCharacter::ResetTeamMaterial()
 {
@@ -1143,11 +824,11 @@ void ASMPlayerCharacter::ResetTeamMaterial()
 
 	switch (TeamComponent->GetCurrentTeam())
 	{
-		case ESMTeam::None:
+	case ESMTeam::None:
 		{
 			break;
 		}
-		case ESMTeam::FutureBass:
+	case ESMTeam::FutureBass:
 		{
 			for (int32 i = 0; i < TotalMaterialCount; ++i)
 			{
@@ -1156,7 +837,7 @@ void ASMPlayerCharacter::ResetTeamMaterial()
 
 			break;
 		}
-		case ESMTeam::Rock:
+	case ESMTeam::Rock:
 		{
 			for (int32 i = 0; i < TotalMaterialCount; ++i)
 			{

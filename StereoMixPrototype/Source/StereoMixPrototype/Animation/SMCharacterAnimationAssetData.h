@@ -37,6 +37,12 @@ public:
 	UPROPERTY(EditDefaultsOnly, Category = "AnimationMontage")
 	TObjectPtr<UAnimMontage> Stun;
 
+	UPROPERTY(EditDefaultsOnly, Category = "AnimationMontage")
+	TObjectPtr<UAnimMontage> DashGrabMontage;
+
+	UPROPERTY(EditDefaultsOnly, Category = "AnimationMontage")
+	TObjectPtr<UAnimMontage> GrabSmashMontage;
+
 public:
 	UPROPERTY(EditDefaultsOnly, Category = "AnimationSequence")
 	TObjectPtr<UAnimSequence> StunEnd;

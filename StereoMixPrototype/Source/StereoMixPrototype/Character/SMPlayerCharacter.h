@@ -41,344 +41,111 @@ enum class EPlayerCharacterState : uint8
  */
 UCLASS()
 class STEREOMIXPROTOTYPE_API ASMPlayerCharacter : public ASMCharacterBase,
-                                                  public ISMCharacterAnimationInterface, public ISMProjectileInterface,
-                                                  public ISMTeamComponentInterface, public ISMPlayerControllerInterface
+                                                  public ISMTeamComponentInterface,
+                                                  public ISMPlayerControllerInterface
 {
 	GENERATED_BODY()
 
 public:
-	ASMPlayerCharacter();
-
-public:
+	explicit ASMPlayerCharacter(const FObjectInitializer& ObjectInitializer);
 	virtual void PostInitializeComponents() override;
+	virtual void BeginPlay() override;
 	virtual void PossessedBy(AController* NewController) override;
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
+	virtual void Tick(float DeltaSeconds) override;
 
-// ~Property Replicate Section
+protected:
+	/**
+	 * 캐릭터의 컨트롤러입니다.
+	 * @remarks 서버에서는 모든 캐릭터가 각자의 컨트롤러를 가지고 있고, 클라이언트에서는 로컬 캐릭터만 본인의 컨트롤러를 가지고 있습니다.
+	 * 그래서 리모트 클라이언트는 null입니다.
+	 */
+	UPROPERTY()
+	TObjectPtr<ASMPlayerController> SMPlayerController;
+
+	// ~Property Replicate Section
 public:
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 protected:
-	virtual void OnRep_Controller() override;
-
-	virtual void OnRep_PlayerState() override;
-
-protected:
-	UFUNCTION()
-	void OnRep_bCanControl();
-
-	UFUNCTION()
-	void OnRep_CurrentState();
-
-	UFUNCTION()
-	void OnRep_bEnableMovement();
-
-	UFUNCTION()
-	void OnRep_bEnableCollision();
-
-	UFUNCTION()
-	void OnRep_CollisionProfileName();
-
-	UFUNCTION()
-	void OnRep_bIsStunned();
-
-protected:
-	UPROPERTY(ReplicatedUsing = OnRep_bCanControl)
-	uint32 bCanControl:1;
-
 	UPROPERTY(ReplicatedUsing = OnRep_CurrentState)
 	EPlayerCharacterState CurrentState;
 
-	UPROPERTY(ReplicatedUsing = OnRep_bEnableMovement)
-	uint32 bEnableMovement:1;
+	virtual void OnRep_PlayerState() override;
 
-	UPROPERTY(ReplicatedUsing = OnRep_bEnableCollision)
-	uint32 bEnableCollision:1;
+	UFUNCTION()
+	void OnRep_CurrentState(const EPlayerCharacterState& OldState) const;
 
-	UPROPERTY(ReplicatedUsing = OnRep_CollisionProfileName)
-	FName CollisionProfileName;
+	// ~End of Property Replicate Section
 
-	UPROPERTY(ReplicatedUsing = OnRep_bIsStunned)
-	uint32 bIsStunned:1;
-// ~End of Property Replicate Section
-
+	// ~Camera Section
 protected:
-	virtual void BeginPlay() override;
-
-public:
-	virtual void Tick(float DeltaSeconds) override;
-
-// ~Camera Section
-protected:
-	/** 카메라 초기세팅에 사용되는 함수입니다. */
-	void InitCamera();
-
 	UPROPERTY(VisibleAnywhere, Category = "Camera")
 	TObjectPtr<USpringArmComponent> CameraBoom;
 
 	UPROPERTY(VisibleAnywhere, Category = "Camera")
 	TObjectPtr<UCameraComponent> Camera;
-// ~End of Camera Section
 
-// ~Input Section
+	/** 카메라 초기세팅에 사용되는 함수입니다. */
+	void InitCamera() const;
+	// ~End of Camera Section
+
+	// ~Input Section
 protected:
 	/** 컨트롤러의 초기 세팅에 사용되는 함수입니다. */
-	void InitCharacterControl();
+	void InitializeInputSystem() const;
+	// ~End of Input Section
 
-	/** 캐릭터 기준으로 마우스 포인터가 가리키는 방향을 반환합니다. */
-	FVector GetMousePointingDirection();
+	// ~Movement Section
+protected:
+	UPROPERTY()
+	TObjectPtr<UNiagaraComponent> MoveTrailEffectComponent;
+
+	void Move(const FInputActionValue& InputActionValue);
 
 	/** GetMousePointingDirection()를 통해 얻어낸 방향으로 캐릭터를 회전시킵니다. */
 	void UpdateRotateToMousePointer();
 
-	/** 현재 마우스 포인터의 위치를 반환합니다 */
-	FVector GetMouseCursorLocation();
+	// ~End of Movement Section
 
-// ~End of Input Section
-
-// ~Movement Section
+	// ~Character State Section
 public:
-	void SetEnableMovement(bool bInEnableMovement);
-
-protected:
-	void Move(const FInputActionValue& InputActionValue);
-
-protected:
-	UPROPERTY()
-	TObjectPtr<UNiagaraComponent> MoveTrailEffectComponent;
-// ~End of Movement Section
-
-// ~Character State Section
-public:
-	FORCEINLINE EPlayerCharacterState GetCurrentState() { return CurrentState; }
+	FORCEINLINE EPlayerCharacterState GetCurrentState() const { return CurrentState; }
 	void SetCurrentState(EPlayerCharacterState InState);
-	void SetEnableCollision(bool bInEnableCollision);
-	void SetCollisionProfileName(FName InCollisionProfileName);
-
-	FORCEINLINE void SetStunned(bool bInStunned)
-	{
-		if (HasAuthority())
-		{
-			bIsStunned = bInStunned;
-			OnRep_bIsStunned();
-		}
-	}
-
-protected:
-	/** 서버에서 실행됩니다.*/
-	void ApplyStunned();
-
-	UFUNCTION(NetMulticast, Unreliable)
-	void MulticastRPCPlayStunVisualEffect();
-
-	/** 서버에서 실행됩니다.*/
-	void RecoverStunned();
-
-	UFUNCTION(NetMulticast, Unreliable)
-	void MulticastRPCPlayStunEndAnimation();
-
-	void StunEnded(UAnimMontage* InAnimMontage, bool bInterrupted);
-
-	UFUNCTION(NetMulticast, Unreliable)
-	void MulticastRPCPlayStunEndedVisualEffect();
 
 protected:
 	UPROPERTY(VisibleAnywhere, Category = "HitBox")
 	TObjectPtr<USphereComponent> HitBoxComponent;
 
-	UPROPERTY(VisibleAnywhere, Category = "Effect")
-	TObjectPtr<UNiagaraComponent> StunEffectComponent;
-
-	FTimerHandle StunTimerHandle;
-
 	UPROPERTY()
-	TObjectPtr<ASMPlayerState> StoredSMPlayerState;
-// ~End of Character Section
+	TObjectPtr<ASMPlayerState> SMPlayerState;
+	// ~End of Character State Section
 
-// ~Aim Section
+	// ~Aim Section
 protected:
 	UPROPERTY()
 	TObjectPtr<AAimPlane> AimPlane;
-// ~End of Aim Section
+	// ~End of Aim Section
 
-// ~Control Section
-public:
-	void SetCanControl(bool bInEnableControl);
-
-protected:
-	UPROPERTY()
-	TObjectPtr<ASMPlayerController> StoredSMPlayerController;
-// ~End of Control Section
-
-// ~Util Section
+	// ~Util Section
 public:
 	/** 서버와 시전자를 제외한 플레이어 캐릭터들을 반환합니다. */
-	TArray<ASMPlayerCharacter*> GetCharactersExcludingServerAndCaster();
+	TArray<ASMPlayerCharacter*> GetCharactersExcludingServerAndCaster() const;
 
 	/** 현재 캐릭터의 위치에서 가장 가까운 바닥까지의 거리를 반환합니다. */
-	float DistanceHeightFromFloor();
-// ~End of Util Section
+	float DistanceHeightFromFloor() const;
+	// ~End of Util Section
 
-// ~Jump Section
-protected:
-	/** 점프 시 호출되는 이벤트입니다. */
-	virtual void OnJumped_Implementation() override;
-
-	/** 착지 시 호출되는 이벤트입니다. */
-	virtual void Landed(const FHitResult& Hit) override;
-// ~Jump Section
-
-// ~Stat Section
-protected:
-	const float MoveSpeed = 700.0f;
-// ~End of Stat Section
-
-// ~Catch Section
-protected:
-	struct FPullData
-	{
-		uint32 bIsPulling:1 = false;
-		ASMPlayerCharacter* Caster;
-		FVector StartLocation;
-		FVector EndLocation;
-		float ElapsedTime = 0.0f;
-		float TotalTime = 0.25f;
-		float LastServerTime = 0.0f;
-	};
-
-public:
-	FORCEINLINE ASMPlayerCharacter* GetCaughtCharacter() { return CaughtCharacter; }
-	void SetCaughtCharacter(ASMPlayerCharacter* InCaughtCharacter);
-
-protected:
-	void Catch();
-
-	void CanCatch();
-
-	UFUNCTION(Server, Unreliable)
-	void ServerRPCPlayCatchAnimation();
-
-	UFUNCTION(Client, Unreliable)
-	void ClientRPCPlayCatchAnimation(const ASMPlayerCharacter* InPlayAnimationCharacter) const;
-
-	virtual void AnimNotify_Catch() override;
-
-	UFUNCTION(Server, Reliable)
-	void ServerRPCPerformPull(ASMPlayerCharacter* InTargetCharacter);
-
-	UFUNCTION(Client, Unreliable)
-	void ClientRPCPlayCaughtVisualEffect(ASMPlayerCharacter* NeedPlayingClient) const;
-
-	UFUNCTION(Client, Reliable)
-	void ClientRPCLastTimeCheck();
-
-	void UpdatePerformPull();
-
-	UFUNCTION(Client, Unreliable)
-	void ClientRPCInterpolationPull(FVector_NetQuantize10 InInterpolationLocation);
-
-	void UpdateInterpolationPull();
-
-	void HandlePullEnd();
-
-	UFUNCTION(Client, Reliable)
-	void ClientRPCPlayCaughtAnimation(ASMPlayerCharacter* InPlayAnimationCharacter) const;
-
-protected:
-	FPullData PullData;
-
-	UPROPERTY()
-	TObjectPtr<USMCharacterAnimInstance> StoredSMAnimInstance;
-
-	UPROPERTY(Replicated)
-	TObjectPtr<ASMPlayerCharacter> CaughtCharacter;
-
-	uint32 bCanCatch:1 = true;
-
-	FVector CatchLocation;
-
-public: // Animation Interface Section
-	FORCEINLINE virtual bool GetHasAcceleration() override { return GetCharacterMovement()->GetCurrentAcceleration() != FVector::ZeroVector; }
-	FORCEINLINE virtual bool GetIsFalling() override { return GetCharacterMovement()->IsFalling(); }
-	FORCEINLINE virtual float GetZVelocity() override { return GetCharacterMovement()->Velocity.Z; }
-
-// ~Smash Section
-protected:
-	void Smash();
-
-	UFUNCTION(Server, Unreliable)
-	void ServerRPCPlaySmashAnimation();
-
-	UFUNCTION(Client, Unreliable)
-	void ClientRPCPlaySmashAnimation(const ASMPlayerCharacter* InCharacterToAnimation) const;
-
-	/** 애님 노티파이에 의해 호출됩니다. */
-	virtual void AnimNotify_Smash() override;
-
-	UFUNCTION(Server, Reliable)
-	void ServerRPCPlayKnockDownAnimation();
-
-	UFUNCTION(Client, Reliable)
-	void ClientRPCPlayKnockDownAnimation(ASMPlayerCharacter* InCharacterToAnimation);
-
-	UFUNCTION(Server, Reliable)
-	void ServerRPCDetachToCaster(FVector_NetQuantize10 InLocation, FRotator InRotation);
-
-	/** 스매시 애니메이션이 종료되고난 뒤에 호출됩니다. */
-	void SmashEnded(UAnimMontage* PlayAnimMontage, bool bInterrupted);
-
-	UFUNCTION(Client, Reliable)
-	void ClientRPCSetRotation(FRotator InRotation);
-
-	/** 타이머 실행 이후(기상 시간) 기상 애니메이션을 재생시킵니다. */
-	UFUNCTION(NetMulticast, Reliable)
-	void MulticastRPCPlayStandUpVisualEffect();
-
-	/** 기상 애니메이션이 종료되고난 뒤에 호출됩니다. */
-	void StandUpEnded(UAnimMontage* PlayAnimMontage, bool bInterrupted);
-// ~End of Smash Section
-
-// ~Ranged Attack Section
-protected:
-	void RangedAttack();
-
-	UFUNCTION(Server, Unreliable)
-	void ServerRPCPlayRangedAttackAnimation();
-
-	UFUNCTION(Client, Unreliable)
-	void ClientRPCPlayRangedAttackAnimation(const ASMPlayerCharacter* CharacterToAnimation) const;
-
-	void CanRangedAttack();
-
-	virtual void AnimNotify_RangedAttack() override;
-
-	UFUNCTION(Server, Reliable)
-	void ServerRPCShootProjectile(ASMPlayerCharacter* NewOwner);
-
-	/** 투사체에 적중당하면 서버측에서 호출됩니다. */
-	virtual void HitProjectile() override;
-
-	UFUNCTION(NetMulticast, Unreliable)
-	void MulticastRPCPlayProjectileHitVisualEffect(ASMPlayerCharacter* NeedPlayingCharacter);
-
-protected:
-	uint32 bCanRangedAttack:1 = true;
-// ~End of Ranged Attack Section
-
-// ~UI Section
-protected:
-	UFUNCTION(Server, Reliable)
-	void ServerRPCSetPlayerName(const FString& InName);
-
+	// ~UI Section
 protected:
 	UPROPERTY(VisibleAnywhere, Category = "UI")
 	TObjectPtr<UWidgetComponent> PostureGauge;
 
 	UPROPERTY()
 	TObjectPtr<USMPostureGaugeWidget> PostureGaugeWidget;
-// ~End of UI Section
+	// ~End of UI Section
 
-// ~Team Section
+	// ~Team Section
 public:
 	FORCEINLINE virtual USMTeamComponent* GetTeamComponent() override { return TeamComponent; }
 
@@ -396,11 +163,11 @@ protected:
 protected:
 	UPROPERTY(VisibleAnywhere, Category = "Team")
 	TObjectPtr<USMTeamComponent> TeamComponent;
-// ~End of Team Section
+	// ~End of Team Section
 
-// ~Tile Flip Section
+	// ~Tile Flip Section
 protected:
 	UPROPERTY(VisibleAnywhere, Category = "Smash")
 	TObjectPtr<USMSmashComponent> SmashComponent;
-// ~End of Tile Flip Section
+	// ~End of Tile Flip Section
 };

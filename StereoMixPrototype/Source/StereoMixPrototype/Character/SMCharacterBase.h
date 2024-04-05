@@ -9,6 +9,7 @@
 class USMPlayerCharacterDesignData;
 class USMCharacterStatComponent;
 class USMCharacterAssetData;
+class USMCharacterAbilityManagerComponent;
 
 UCLASS()
 class STEREOMIXPROTOTYPE_API ASMCharacterBase : public ACharacter
@@ -16,7 +17,7 @@ class STEREOMIXPROTOTYPE_API ASMCharacterBase : public ACharacter
 	GENERATED_BODY()
 
 public:
-	ASMCharacterBase();
+	ASMCharacterBase(const FObjectInitializer& ObjectInitializer);
 
 public:
 	virtual void PostInitializeComponents() override;
@@ -27,7 +28,7 @@ protected:
 public:
 	virtual void Tick(float DeltaTime) override;
 
-// ~Data Section
+	// ~Data Section
 protected:
 	void AssetCheck();
 
@@ -37,11 +38,18 @@ protected:
 	UPROPERTY()
 	TObjectPtr<const USMPlayerCharacterDesignData> DesignData;
 
-// ~End of Data Section
+	// ~End of Data Section
 
-// ~Component Section
+	// ~Component Section
 protected:
 	UPROPERTY()
 	TObjectPtr<USMCharacterStatComponent> Stat;
-// ~End of Component Section
+
+	UPROPERTY(Category = "Ability", VisibleAnywhere, BlueprintReadOnly, meta = (AllowPrivateAccess = true))
+	TObjectPtr<USMCharacterAbilityManagerComponent> AbilityManager;
+
+public:
+	FORCEINLINE USMCharacterStatComponent* GetStat() const { return Stat; }
+	FORCEINLINE USMCharacterAbilityManagerComponent* GetAbilityManager() const { return AbilityManager; }
+	// ~End of Component Section
 };
